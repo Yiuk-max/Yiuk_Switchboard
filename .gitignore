@@ -1,0 +1,22 @@
+# Go build outputs
+/bin/
+/dist/
+*.exe
+*.test
+*.out
+
+# Local configuration and logs
+/config.yaml
+*.log
+
+# IDE files
+.idea/
+.vscode/*.local.json
+
+# NeoForge mod build outputs
+mod/.gradle/
+mod/.gradle-home/
+mod/.toolchain/
+mod/build/
+mod/run/
+mod/out/

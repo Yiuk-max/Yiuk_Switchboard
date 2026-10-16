@@ -1,0 +1,65 @@
+package com.yiuk.switchboard.mods;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import net.neoforged.fml.ModList;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Set;
+
+public final class ModListSnapshot {
+    private static final Set<String> BUILT_INS = Set.of("minecraft", "neoforge", "java", "yiukswitchboard");
+    private ModListSnapshot() {}
+
+    public static JsonArray toJson() {
+        JsonArray result = new JsonArray();
+        ModList.get().getMods().stream()
+                .filter(mod -> !BUILT_INS.contains(mod.getModId()))
+                .sorted((a, b) -> a.getModId().compareToIgnoreCase(b.getModId()))
+                .forEach(mod -> {
+                    JsonObject item = new JsonObject();
+                    item.addProperty("id", mod.getModId());
+                    item.addProperty("ver", mod.getVersion().toString());
+                    result.add(item);
+                });
+        return result;
+    }
+
+    public enum Status { MATCH, MISSING, VERSION_MISMATCH, EXTRA, INVALID }
+    public record Difference(String id, String roomVersion, String localVersion, Status status) {}
+
+    public static List<Difference> differences(JsonArray hostMods) {
+        List<Difference> result = new ArrayList<>();
+        var local = new java.util.HashMap<String, String>();
+        ModList.get().getMods().stream()
+                .filter(mod -> !BUILT_INS.contains(mod.getModId()))
+                .forEach(mod -> local.put(mod.getModId(), mod.getVersion().toString()));
+        for (var element : hostMods) {
+            if (!element.isJsonObject()) {
+                result.add(new Difference("?", "?", null, Status.INVALID));
+                continue;
+            }
+            JsonObject mod = element.getAsJsonObject();
+            String id;
+            String version;
+            try {
+                id = mod.has("id") ? mod.get("id").getAsString() : "?";
+                version = mod.has("ver") ? mod.get("ver").getAsString() : "?";
+            } catch (RuntimeException malformed) {
+                result.add(new Difference("?", "?", null, Status.INVALID));
+                continue;
+            }
+            if (id.isBlank()) id = "?";
+            if (version.isBlank()) version = "?";
+            String localVersion = local.get(id);
+            Status status = localVersion == null ? Status.MISSING
+                    : localVersion.equals(version) ? Status.MATCH : Status.VERSION_MISMATCH;
+            result.add(new Difference(id, version, localVersion, status));
+            local.remove(id);
+        }
+        local.entrySet().stream().sorted(java.util.Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
+                .forEach(entry -> result.add(new Difference(entry.getKey(), "", entry.getValue(), Status.EXTRA)));
+        return result;
+    }
+}
