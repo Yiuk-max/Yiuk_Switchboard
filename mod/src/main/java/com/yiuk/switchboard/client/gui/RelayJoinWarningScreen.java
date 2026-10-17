@@ -1,9 +1,8 @@
 package com.yiuk.switchboard.client.gui;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.yiuk.switchboard.config.RelayConfig;
 import com.yiuk.switchboard.control.ControlConnection;
+import com.yiuk.switchboard.control.RelayMessage;
 import com.yiuk.switchboard.mods.ModListSnapshot;
 import com.yiuk.switchboard.protocol.RelayEndpoint;
 import net.minecraft.client.gui.components.Button;
@@ -17,12 +16,12 @@ import java.util.List;
 
 public final class RelayJoinWarningScreen extends RelayScreen {
     private final RelayConfig config;
-    private final JsonObject room;
+    private final RelayMessage.RoomSummary room;
     private final List<ModListSnapshot.Difference> modDetails;
     private int page;
     private String error = "";
 
-    public RelayJoinWarningScreen(Screen parent, RelayConfig config, JsonObject room, JsonArray mods) {
+    public RelayJoinWarningScreen(Screen parent, RelayConfig config, RelayMessage.RoomSummary room, List<RelayMessage.Mod> mods) {
         super(parent, Component.translatable("yiukswitchboard.screen.mod_warning"));
         this.config = config;
         this.room = room;
@@ -55,11 +54,11 @@ public final class RelayJoinWarningScreen extends RelayScreen {
     private void join() {
         try {
             RelayEndpoint relay = RelayEndpoint.parse(config.address);
-            int port = room.has("port") ? room.get("port").getAsInt() : -1;
+            int port = room.port;
             if (port < 1 || port > 65535) throw new IllegalArgumentException("房间端口无效，请刷新房间列表");
             String addressHost = relay.host().contains(":") ? "[" + relay.host() + "]" : relay.host();
             String address = addressHost + ":" + port;
-            ServerData server = new ServerData(ControlConnection.string(room, "name"), address, ServerData.Type.OTHER);
+            ServerData server = new ServerData(room.name, address, ServerData.Type.OTHER);
             ConnectScreen.startConnecting(parent, minecraft, ServerAddress.parseString(address), server, false, null);
         } catch (RuntimeException e) {
             error = e.getMessage() == null ? "无法连接，请刷新房间列表" : e.getMessage();

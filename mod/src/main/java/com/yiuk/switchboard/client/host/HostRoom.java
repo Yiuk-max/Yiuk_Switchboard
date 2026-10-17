@@ -1,11 +1,11 @@
 package com.yiuk.switchboard.client.host;
 
-import com.google.gson.JsonObject;
 import com.mojang.logging.LogUtils;
 import com.yiuk.switchboard.client.gui.HostStatusScreen;
 import com.yiuk.switchboard.config.RelayConfig;
 import com.yiuk.switchboard.control.ControlConnection;
 import com.yiuk.switchboard.control.RelayApi;
+import com.yiuk.switchboard.control.RelayMessage;
 import com.yiuk.switchboard.mods.ModListSnapshot;
 import com.yiuk.switchboard.protocol.RelayEndpoint;
 import net.minecraft.client.Minecraft;
@@ -14,7 +14,6 @@ import net.minecraft.client.server.IntegratedServer;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
@@ -56,7 +55,7 @@ public final class HostRoom implements AutoCloseable {
     private final boolean originalAuthentication;
     private volatile ControlConnection control;
     private volatile String connectionStatus = "";
-    private volatile CompletableFuture<JsonObject> closeResponse;
+    private volatile CompletableFuture<RelayMessage> closeResponse;
     private volatile long lastPongNanos = System.nanoTime();
 
     private HostRoom(RelayConfig config, ControlConnection control, int localPort, String id, String roomToken, int publicPort,
@@ -76,21 +75,18 @@ public final class HostRoom implements AutoCloseable {
                                   IntegratedServer integratedServer, boolean originalAuthentication) throws IOException {
         ControlConnection control = ControlConnection.authenticate(config);
         try {
-            JsonObject request = RelayApi.message("create");
-            request.addProperty("name", roomName);
-            request.addProperty("max", maxPlayers);
-            request.addProperty("local_port", localPort);
-            request.addProperty("mc", "1.21.1");
-            request.addProperty("loader", "neoforge");
-            request.add("mods", ModListSnapshot.toJson());
+            RelayMessage request = RelayApi.message("create");
+            request.name=roomName; request.maxPlayers=maxPlayers; request.localPort=localPort;
+            request.minecraftVersion="1.21.1"; request.loader="neoforge";
+            request.mods.addAll(ModListSnapshot.snapshot());
             control.send(request);
-            JsonObject response = control.read();
-            if (!"created".equals(ControlConnection.string(response, "t"))) {
+            RelayMessage response = control.read();
+            if (!"created".equals(response.type)) {
                 throw new IOException(ControlConnection.errorText(response));
             }
             HostRoom room = new HostRoom(config, control, localPort,
-                    ControlConnection.string(response, "id"), ControlConnection.string(response, "token"),
-                    response.get("port").getAsInt(), roomName,
+                    response.roomId, response.token,
+                    response.port, roomName,
                     integratedServer, originalAuthentication);
             return room;
         } catch (Exception e) {
@@ -103,7 +99,7 @@ public final class HostRoom implements AutoCloseable {
     public void activate() throws IOException {
         if (closed.get() || closing.get()) throw new IOException("房间已关闭");
         if (!started.compareAndSet(false, true)) return;
-        control.socket().setSoTimeout(1000);
+        control.socket().setSoTimeout(0);
         lastPongNanos = System.nanoTime();
         startReader(control);
         heartbeats.scheduleAtFixedRate(this::sendHeartbeat, 5, 5, TimeUnit.SECONDS);
@@ -135,15 +131,15 @@ public final class HostRoom implements AutoCloseable {
     private void readControl(ControlConnection connection) {
         while (!closed.get() && !closing.get()) {
             try {
-                JsonObject message = connection.read();
-                String type = ControlConnection.string(message, "t");
+                RelayMessage message = connection.read();
+                String type = message.type;
                 if ("pong".equals(type)) {
                     lastPongNanos = System.nanoTime();
                 } else if (closing.get() && ("ok".equals(type) || "err".equals(type))) {
-                    CompletableFuture<JsonObject> response = closeResponse;
+                    CompletableFuture<RelayMessage> response = closeResponse;
                     if (response != null) response.complete(message);
                 } else if ("new_session".equals(type)) {
-                    String sid = ControlConnection.string(message, "sid");
+                    String sid = message.sessionId;
                     if (sid.isBlank()) {
                         LOGGER.warn("Relay sent a new session without a sid (room={})", id);
                     } else if (!closed.get() && !closing.get()) {
@@ -210,15 +206,14 @@ public final class HostRoom implements AutoCloseable {
             try {
                 candidate = ControlConnection.authenticate(config, 1500, 1500);
                 candidate.socket().setSoTimeout(2000);
-                JsonObject resume = RelayApi.message("resume");
-                resume.addProperty("id", id);
-                resume.addProperty("token", roomToken);
+                RelayMessage resume = RelayApi.message("resume");
+                resume.roomId=id; resume.token=roomToken;
                 candidate.send(resume);
-                JsonObject response = candidate.read();
-                if (!"ok".equals(ControlConnection.string(response, "t"))) {
+                RelayMessage response = candidate.read();
+                if (!"ok".equals(response.type)) {
                     throw new IOException(ControlConnection.errorText(response));
                 }
-                candidate.socket().setSoTimeout(1000);
+                candidate.socket().setSoTimeout(0);
                 synchronized (controlLock) {
                     if (closed.get() || closing.get()) {
                         candidate.close();
@@ -269,9 +264,9 @@ public final class HostRoom implements AutoCloseable {
             relay.setTcpNoDelay(true);
             relay.setSoTimeout(0);
             stage = "pair sid with relay";
-            JsonObject data = RelayApi.message("data");
-            data.addProperty("sid", sid);
-            byte[] header = (data + "\n").getBytes(StandardCharsets.UTF_8);
+            RelayMessage data = RelayApi.message("data");
+            data.sessionId=sid;
+            byte[] header = RelayApi.encodeFrame(data);
             relay.getOutputStream().write(header);
             relay.getOutputStream().flush();
             stage = "connect to local LAN port";
@@ -339,17 +334,17 @@ public final class HostRoom implements AutoCloseable {
         if (!closing.compareAndSet(false, true)) throw new IOException("房间正在关闭");
         connectionStatus = "正在等待中转服务器确认关房…";
         heartbeats.shutdownNow();
-        CompletableFuture<JsonObject> responseFuture = new CompletableFuture<>();
+        CompletableFuture<RelayMessage> responseFuture = new CompletableFuture<>();
         closeResponse = responseFuture;
         IOException failure = null;
         ControlConnection current = control;
         try {
             if (current == null || current.socket().isClosed()) throw new IOException("中转连接已断开，服务器可能会在恢复期限后自动关闭房间");
-            JsonObject request = RelayApi.message("close");
-            request.addProperty("id", id);
+            RelayMessage request = RelayApi.message("close");
+            request.roomId=id;
             current.send(request);
-            JsonObject response = responseFuture.get(4, TimeUnit.SECONDS);
-            if (!"ok".equals(ControlConnection.string(response, "t"))) {
+            RelayMessage response = responseFuture.get(4, TimeUnit.SECONDS);
+            if (!"ok".equals(response.type)) {
                 throw new IOException(ControlConnection.errorText(response));
             }
             connectionStatus = "房间已由中转服务器确认关闭";
@@ -379,8 +374,8 @@ public final class HostRoom implements AutoCloseable {
             heartbeats.shutdownNow();
             ControlConnection current = control;
             if (current != null && !current.socket().isClosed()) {
-                JsonObject request = RelayApi.message("close");
-                request.addProperty("id", id);
+                RelayMessage request = RelayApi.message("close");
+                request.roomId=id;
                 try { current.send(request); }
                 catch (IOException e) { LOGGER.warn("Could not send room close on shutdown (room={})", id, e); }
             }

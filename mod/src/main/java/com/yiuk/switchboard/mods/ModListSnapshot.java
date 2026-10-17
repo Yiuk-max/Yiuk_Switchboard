@@ -1,7 +1,6 @@
 package com.yiuk.switchboard.mods;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
+import com.yiuk.switchboard.control.RelayMessage;
 import net.neoforged.fml.ModList;
 
 import java.util.ArrayList;
@@ -12,16 +11,13 @@ public final class ModListSnapshot {
     private static final Set<String> BUILT_INS = Set.of("minecraft", "neoforge", "java", "yiukswitchboard");
     private ModListSnapshot() {}
 
-    public static JsonArray toJson() {
-        JsonArray result = new JsonArray();
+    public static List<RelayMessage.Mod> snapshot() {
+        List<RelayMessage.Mod> result = new ArrayList<>();
         ModList.get().getMods().stream()
                 .filter(mod -> !BUILT_INS.contains(mod.getModId()))
                 .sorted((a, b) -> a.getModId().compareToIgnoreCase(b.getModId()))
                 .forEach(mod -> {
-                    JsonObject item = new JsonObject();
-                    item.addProperty("id", mod.getModId());
-                    item.addProperty("ver", mod.getVersion().toString());
-                    result.add(item);
+                    result.add(new RelayMessage.Mod(mod.getModId(), mod.getVersion().toString()));
                 });
         return result;
     }
@@ -29,27 +25,15 @@ public final class ModListSnapshot {
     public enum Status { MATCH, MISSING, VERSION_MISMATCH, EXTRA, INVALID }
     public record Difference(String id, String roomVersion, String localVersion, Status status) {}
 
-    public static List<Difference> differences(JsonArray hostMods) {
+    public static List<Difference> differences(List<RelayMessage.Mod> hostMods) {
         List<Difference> result = new ArrayList<>();
         var local = new java.util.HashMap<String, String>();
         ModList.get().getMods().stream()
                 .filter(mod -> !BUILT_INS.contains(mod.getModId()))
                 .forEach(mod -> local.put(mod.getModId(), mod.getVersion().toString()));
-        for (var element : hostMods) {
-            if (!element.isJsonObject()) {
-                result.add(new Difference("?", "?", null, Status.INVALID));
-                continue;
-            }
-            JsonObject mod = element.getAsJsonObject();
-            String id;
-            String version;
-            try {
-                id = mod.has("id") ? mod.get("id").getAsString() : "?";
-                version = mod.has("ver") ? mod.get("ver").getAsString() : "?";
-            } catch (RuntimeException malformed) {
-                result.add(new Difference("?", "?", null, Status.INVALID));
-                continue;
-            }
+        for (var mod : hostMods) {
+            String id = mod.id();
+            String version = mod.version();
             if (id.isBlank()) id = "?";
             if (version.isBlank()) version = "?";
             String localVersion = local.get(id);

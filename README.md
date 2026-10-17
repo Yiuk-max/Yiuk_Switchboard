@@ -18,7 +18,7 @@ See [the development environment guide](mod/docs/development-environment.md) for
 
 Build a local executable with `go build -o bin/relay.exe ./cmd/relay` (Windows) or `go build -o bin/relay ./cmd/relay` (Linux).
 
-The first implementation includes password authentication, JSONL control messages, room creation/listing/closure, room mod lists, heartbeat responses, host reconnect tokens, per-room TCP listeners, one-time sid pairing and byte-transparent TCP forwarding. It keeps state in memory. Password traffic is plaintext; use only on a trusted network until TLS is added.
+The first implementation includes password authentication, length-delimited Protocol Buffers control messages (schema: `proto/switchboard.proto`), room creation/listing/closure, room mod lists, heartbeat responses, host reconnect tokens, per-room TCP listeners, one-time sid pairing and byte-transparent TCP forwarding. It keeps state in memory. Password traffic is plaintext; use only on a trusted network until TLS is added.
 
 The relay batches file logs in memory (64 KiB threshold), then flushes and syncs them on graceful shutdown. Use Ctrl+C or the service manager's normal stop operation; forced termination can lose buffered log records.
 

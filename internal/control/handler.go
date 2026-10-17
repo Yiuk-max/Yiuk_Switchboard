@@ -41,9 +41,9 @@ func (h *Handler) ServeConn(conn net.Conn, onClose func()) {
 	if tcp, ok := conn.(*net.TCPConn); ok {
 		_ = tcp.SetKeepAlive(true)
 	}
-	r := bufio.NewReaderSize(conn, protocol.MaxLineBytes+1)
+	r := bufio.NewReaderSize(conn, protocol.MaxMessageBytes+8)
 	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
-	first, err := protocol.ReadLine(r)
+	first, err := protocol.ReadFrame(r)
 	if err != nil {
 		return
 	}
@@ -73,7 +73,7 @@ func (h *Handler) ServeConn(conn net.Conn, onClose func()) {
 		_ = protocol.Write(conn, protocol.Message{T: "err", Code: "RATE_LIMITED", Msg: "too many login attempts"})
 		return
 	}
-	if first.Ver != 1 {
+	if first.Ver != 2 {
 		_ = protocol.Write(conn, protocol.Message{T: "err", Code: "BAD_VERSION", Msg: "unsupported protocol version"})
 		return
 	}
@@ -95,7 +95,7 @@ func (h *Handler) ServeConn(conn net.Conn, onClose func()) {
 	defer h.rooms.OwnerDisconnected(clientID)
 	_ = conn.SetReadDeadline(time.Now().Add(time.Duration(h.config.HeartbeatTimeoutSec) * time.Second))
 	for {
-		msg, err := protocol.ReadLine(r)
+		msg, err := protocol.ReadFrame(r)
 		if err != nil {
 			if !errors.Is(err, net.ErrClosed) {
 				slog.Debug("control connection ended", "remote", conn.RemoteAddr().String(), "error", err)

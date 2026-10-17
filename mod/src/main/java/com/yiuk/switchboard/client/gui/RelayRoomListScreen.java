@@ -1,11 +1,10 @@
 package com.yiuk.switchboard.client.gui;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonObject;
 import com.yiuk.switchboard.client.RelayClient;
 import com.yiuk.switchboard.config.RelayConfig;
 import com.yiuk.switchboard.control.ControlConnection;
 import com.yiuk.switchboard.control.RelayApi;
+import com.yiuk.switchboard.control.RelayMessage;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.screens.Screen;
@@ -17,7 +16,7 @@ import java.util.List;
 
 public final class RelayRoomListScreen extends RelayScreen {
     private final RelayConfig config;
-    private final List<JsonObject> rooms = new ArrayList<>();
+    private final List<RelayMessage.RoomSummary> rooms = new ArrayList<>();
     private String status = "";
     private boolean busy;
     private boolean hasLoaded;
@@ -38,11 +37,9 @@ public final class RelayRoomListScreen extends RelayScreen {
         for (int i = 0; i < count; i++) {
             int index = page * count + i;
             if (index >= rooms.size()) break;
-            JsonObject room = rooms.get(index);
-            String label = ControlConnection.string(room, "name") + "   "
-                    + ControlConnection.string(room, "host") + "   "
-                    + safeInt(room, "players") + "/" + safeInt(room, "max")
-                    + "   MC " + ControlConnection.string(room, "mc");
+            RelayMessage.RoomSummary room = rooms.get(index);
+            String label = room.name + "   " + room.host + "   " + room.players + "/" + room.maxPlayers
+                    + "   MC " + room.minecraftVersion;
             addRenderableWidget(Button.builder(Component.literal(label), button -> inspectRoom(room))
                     .bounds(center - 190, top + i * 24, 380, 20).build());
         }
@@ -70,30 +67,18 @@ public final class RelayRoomListScreen extends RelayScreen {
         minecraft.setScreen(replacement);
     }
 
-    private static String safeInt(JsonObject room, String key) {
-        try { return room.has(key) ? Integer.toString(room.get(key).getAsInt()) : "?"; }
-        catch (RuntimeException e) { return "?"; }
-    }
-
     private void refresh() {
         if (busy) return;
         busy = true;
         setButtonsEnabled(false);
         status = Component.translatable("yiukswitchboard.status.loading").getString();
         RelayClient.IO.submit(() -> {
-            List<JsonObject> result = new ArrayList<>();
+            List<RelayMessage.RoomSummary> result = new ArrayList<>();
             String failure = null;
             try {
-                JsonObject response = RelayApi.request(config, RelayApi.message("list"));
-                if (!"rooms".equals(ControlConnection.string(response, "t"))) throw new IOException("房间列表响应无效");
-                if (!response.has("list") || response.get("list").isJsonNull()) {
-                    // Older relays omit an empty list because of JSON omitempty.
-                } else if (response.get("list").isJsonArray()) {
-                    JsonArray array = response.getAsJsonArray("list");
-                    array.forEach(item -> result.add(item.getAsJsonObject()));
-                } else {
-                    throw new IOException("房间列表响应格式无效");
-                }
+                RelayMessage response = RelayApi.request(config, RelayApi.message("list"));
+                if (!"rooms".equals(response.type)) throw new IOException("房间列表响应无效");
+                result.addAll(response.rooms);
             } catch (IOException | RuntimeException e) { failure = RelayApi.describeError(e.getMessage()); }
             String error = failure;
             minecraft.execute(() -> {
@@ -114,25 +99,24 @@ public final class RelayRoomListScreen extends RelayScreen {
         });
     }
 
-    private void inspectRoom(JsonObject room) {
+    private void inspectRoom(RelayMessage.RoomSummary room) {
         if (busy) return;
         busy = true;
         setButtonsEnabled(false);
         status = Component.translatable("yiukswitchboard.status.loading_mods").getString();
         RelayClient.IO.submit(() -> {
-            JsonArray mods = new JsonArray();
+            List<RelayMessage.Mod> mods = new ArrayList<>();
             String failure = null;
             try {
-                JsonObject request = RelayApi.message("room_mods");
-                request.addProperty("id", ControlConnection.string(room, "id"));
-                JsonObject response = RelayApi.request(config, request);
-                if (!"mods".equals(ControlConnection.string(response, "t"))
-                        || !response.has("mods") || !response.get("mods").isJsonArray()) {
+                RelayMessage request = RelayApi.message("room_mods");
+                request.roomId=room.id;
+                RelayMessage response = RelayApi.request(config, request);
+                if (!"mods".equals(response.type)) {
                     throw new IOException("房间模组清单格式无效");
                 }
-                mods = response.getAsJsonArray("mods");
+                mods = response.mods;
             } catch (IOException | RuntimeException e) { failure = RelayApi.describeError(e.getMessage()); }
-            JsonArray roomMods = mods;
+            List<RelayMessage.Mod> roomMods = mods;
             String error = failure;
             minecraft.execute(() -> {
                 if (minecraft.screen != this) return;

@@ -1,6 +1,5 @@
 package com.yiuk.switchboard.client.gui;
 
-import com.google.gson.JsonObject;
 import com.yiuk.switchboard.client.RelayClient;
 import com.yiuk.switchboard.config.RelayConfig;
 import com.yiuk.switchboard.config.RelayServerStore;

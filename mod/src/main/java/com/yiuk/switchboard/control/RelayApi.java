@@ -1,6 +1,5 @@
 package com.yiuk.switchboard.control;
 
-import com.google.gson.JsonObject;
 import com.yiuk.switchboard.config.RelayConfig;
 import net.minecraft.network.chat.Component;
 
@@ -9,20 +8,22 @@ import java.io.IOException;
 public final class RelayApi {
     private RelayApi() {}
 
-    public static JsonObject request(RelayConfig config, JsonObject request) throws IOException {
+    public static RelayMessage request(RelayConfig config, RelayMessage request) throws IOException {
         try (ControlConnection connection = ControlConnection.authenticate(config)) {
             connection.socket().setSoTimeout(10000);
             connection.send(request);
-            JsonObject response = connection.read();
-            if ("err".equals(ControlConnection.string(response, "t"))) throw new IOException(ControlConnection.errorText(response));
+            RelayMessage response = connection.read();
+            if ("err".equals(response.type)) throw new IOException(ControlConnection.errorText(response));
             return response;
         }
     }
 
-    public static JsonObject message(String type) {
-        JsonObject object = new JsonObject();
-        object.addProperty("t", type);
-        return object;
+    public static RelayMessage message(String type) {
+        return RelayMessage.of(type);
+    }
+
+    public static byte[] encodeFrame(RelayMessage message) throws IOException {
+        return ProtobufWire.encode(message);
     }
 
     public static String describeError(String detail) {
