@@ -22,13 +22,17 @@ public final class RelayHostCreateScreen extends RelayScreen {
     private EditBox roomName;
     private EditBox maxPlayers;
     private Button createButton;
+    private Button commandsButton;
     private boolean remember;
+    private boolean allowCommands;
     private boolean busy;
     private String status = "";
 
     public RelayHostCreateScreen(Screen parent) {
         super(parent, Component.translatable("yiukswitchboard.screen.host_create"));
-        remember = RelayConfig.load().rememberPassword;
+        RelayConfig config = RelayConfig.load();
+        remember = config.rememberPassword;
+        allowCommands = config.allowCommands;
     }
 
     @Override
@@ -37,7 +41,9 @@ public final class RelayHostCreateScreen extends RelayScreen {
         RelayConfig saved = RelayConfig.load();
         address = field(center, 52, "yiukswitchboard.field.address", saved.address);
         nickname = field(center, 88, "yiukswitchboard.field.nickname", saved.nickname);
-        password = field(center, 124, "yiukswitchboard.field.password", saved.rememberPassword ? saved.password : "");
+        password = new EditBox(font, center - 150, 124, 300, 20,
+                Component.translatable("yiukswitchboard.field.password"));
+        password.setValue(saved.rememberPassword ? saved.password : "");
         roomName = field(center, 160, "yiukswitchboard.field.room_name", saved.nickname.isBlank() ? "" : saved.nickname + "的房间");
         maxPlayers = field(center, 196, "yiukswitchboard.field.max_players", "8");
         password.setMaxLength(256);
@@ -52,10 +58,16 @@ public final class RelayHostCreateScreen extends RelayScreen {
             remember = !remember;
             button.setMessage(Component.translatable(remember ? "yiukswitchboard.remember.on" : "yiukswitchboard.remember.off"));
         }).bounds(center - 150, 228, 300, 20).build());
+        commandsButton = addRenderableWidget(Button.builder(Component.translatable(allowCommands
+                        ? "yiukswitchboard.commands.allowed" : "yiukswitchboard.commands.denied"), button -> {
+            allowCommands = !allowCommands;
+            button.setMessage(Component.translatable(allowCommands
+                    ? "yiukswitchboard.commands.allowed" : "yiukswitchboard.commands.denied"));
+        }).bounds(center - 150, 252, 300, 20).build());
         createButton = addRenderableWidget(Button.builder(Component.translatable(busy ? "yiukswitchboard.button.creating" : "yiukswitchboard.button.create"), button -> createRoom())
-                .bounds(center - 150, 258, 145, 20).build());
+                .bounds(center - 150, 282, 145, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> onClose())
-                .bounds(center + 5, 258, 145, 20).build());
+                .bounds(center + 5, 282, 145, 20).build());
     }
 
     private EditBox field(int center, int y, String label, String value) {
@@ -72,6 +84,7 @@ public final class RelayHostCreateScreen extends RelayScreen {
         config.nickname = nickname.getValue().trim();
         config.password = password.getValue();
         config.rememberPassword = remember;
+        config.allowCommands = allowCommands;
         String name = roomName.getValue().trim();
         int max;
         try { max = Integer.parseInt(maxPlayers.getValue()); }
@@ -115,8 +128,14 @@ public final class RelayHostCreateScreen extends RelayScreen {
                         // Don't expose the LAN listener unless the relay room was created.
                         // Start consuming new sessions only after the local listener is ready.
                         integratedServer.setUsesAuthentication(false);
-                        if (!wasPublished && !integratedServer.publishServer(null, false, localPort)) {
-                            throw new IOException(Component.translatable("yiukswitchboard.error.lan_open").getString());
+                        if (!wasPublished) {
+                            if (!integratedServer.publishServer(null, allowCommands, localPort)) {
+                                throw new IOException(Component.translatable("yiukswitchboard.error.lan_open").getString());
+                            }
+                        } else {
+                            var playerList = integratedServer.getPlayerList();
+                            playerList.setAllowCommandsForAllPlayers(allowCommands);
+                            for (var player : playerList.getPlayers()) integratedServer.getCommands().sendCommands(player);
                         }
                         if (integratedServer.getPort() != localPort) throw new IOException("LAN 端口与房间配置不一致");
                         result.activate();
@@ -145,6 +164,6 @@ public final class RelayHostCreateScreen extends RelayScreen {
         graphics.drawCenteredString(font, Component.translatable("yiukswitchboard.field.password"), center, 110, 0xFFFFFF);
         graphics.drawCenteredString(font, Component.translatable("yiukswitchboard.field.room_name"), center, 146, 0xFFFFFF);
         graphics.drawCenteredString(font, Component.translatable("yiukswitchboard.field.max_players"), center, 182, 0xFFFFFF);
-        if (!status.isBlank()) graphics.drawCenteredString(font, Component.literal(status), center, 292, 0xFF7777);
+        if (!status.isBlank()) graphics.drawCenteredString(font, Component.literal(status), center, 314, 0xFF7777);
     }
 }

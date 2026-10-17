@@ -2,7 +2,8 @@
 control_port: 25564
 room_port_min: 25570
 room_port_max: 25599
-password: "12345678"
+# Replace this before deployment with a unique, randomly generated secret.
+password: "123456789"
 
 max_rooms: 30
 max_players_per_room: 8

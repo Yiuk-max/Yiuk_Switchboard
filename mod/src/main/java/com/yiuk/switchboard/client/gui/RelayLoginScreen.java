@@ -3,6 +3,7 @@ package com.yiuk.switchboard.client.gui;
 import com.google.gson.JsonObject;
 import com.yiuk.switchboard.client.RelayClient;
 import com.yiuk.switchboard.config.RelayConfig;
+import com.yiuk.switchboard.config.RelayServerStore;
 import com.yiuk.switchboard.control.ControlConnection;
 import com.yiuk.switchboard.control.RelayApi;
 import net.minecraft.client.gui.components.Button;
@@ -20,11 +21,30 @@ public final class RelayLoginScreen extends RelayScreen {
     private String status = "";
     private boolean busy;
     private Button loginButton;
+    private final RelayConfig initialConfig;
+    private final boolean autoLogin;
+    private final String savedServerId;
 
     public RelayLoginScreen(Screen parent) {
+        this(parent, RelayConfig.load(), false, null);
+    }
+
+    public RelayLoginScreen(Screen parent, RelayConfig config, boolean autoLogin, String savedServerId) {
         super(parent, Component.translatable("yiukswitchboard.screen.login"));
-        RelayConfig config = RelayConfig.load();
+        this.initialConfig = copy(config);
+        this.autoLogin = autoLogin;
+        this.savedServerId = savedServerId;
         remember = config.rememberPassword;
+    }
+
+    private static RelayConfig copy(RelayConfig source) {
+        RelayConfig copy = new RelayConfig();
+        copy.address = source.address;
+        copy.nickname = source.nickname;
+        copy.password = source.password;
+        copy.rememberPassword = source.rememberPassword;
+        copy.allowCommands = source.allowCommands;
+        return copy;
     }
 
     @Override
@@ -36,7 +56,7 @@ public final class RelayLoginScreen extends RelayScreen {
         address.setMaxLength(255);
         nickname.setMaxLength(32);
         password.setMaxLength(256);
-        RelayConfig saved = RelayConfig.load();
+        RelayConfig saved = initialConfig;
         address.setValue(saved.address);
         nickname.setValue(saved.nickname);
         if (saved.rememberPassword) password.setValue(saved.password);
@@ -51,6 +71,7 @@ public final class RelayLoginScreen extends RelayScreen {
                 .bounds(center - 150, 220, 145, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("gui.back"), button -> onClose())
                 .bounds(center + 5, 220, 145, 20).build());
+        if (autoLogin && !saved.password.isEmpty()) minecraft.execute(this::login);
     }
 
     private void login() {
@@ -70,8 +91,11 @@ public final class RelayLoginScreen extends RelayScreen {
         loginButton.setMessage(Component.translatable("yiukswitchboard.button.connecting"));
         RelayClient.IO.submit(() -> {
             String failure = null;
-            try (ControlConnection ignored = ControlConnection.authenticate(config)) { config.save(); }
-            catch (IOException e) { failure = RelayApi.describeError(e.getMessage()); }
+            try (ControlConnection ignored = ControlConnection.authenticate(config)) {
+                config.save();
+                if (savedServerId != null) RelayServerStore.updateCredentials(savedServerId, config);
+            }
+            catch (IOException | RuntimeException e) { failure = RelayApi.describeError(e.getMessage()); }
             String result = failure;
             minecraft.execute(() -> {
                 if (minecraft.screen != this) return;

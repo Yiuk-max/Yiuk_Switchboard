@@ -86,9 +86,14 @@ public final class RelayRoomListScreen extends RelayScreen {
             try {
                 JsonObject response = RelayApi.request(config, RelayApi.message("list"));
                 if (!"rooms".equals(ControlConnection.string(response, "t"))) throw new IOException("房间列表响应无效");
-                JsonArray array = response.getAsJsonArray("list");
-                if (array == null) throw new IOException("房间列表响应缺少列表数据");
-                array.forEach(item -> result.add(item.getAsJsonObject()));
+                if (!response.has("list") || response.get("list").isJsonNull()) {
+                    // Older relays omit an empty list because of JSON omitempty.
+                } else if (response.get("list").isJsonArray()) {
+                    JsonArray array = response.getAsJsonArray("list");
+                    array.forEach(item -> result.add(item.getAsJsonObject()));
+                } else {
+                    throw new IOException("房间列表响应格式无效");
+                }
             } catch (IOException | RuntimeException e) { failure = RelayApi.describeError(e.getMessage()); }
             String error = failure;
             minecraft.execute(() -> {

@@ -58,8 +58,6 @@ public final class ModListSnapshot {
             result.add(new Difference(id, version, localVersion, status));
             local.remove(id);
         }
-        local.entrySet().stream().sorted(java.util.Map.Entry.comparingByKey(String.CASE_INSENSITIVE_ORDER))
-                .forEach(entry -> result.add(new Difference(entry.getKey(), "", entry.getValue(), Status.EXTRA)));
         return result;
     }
 }

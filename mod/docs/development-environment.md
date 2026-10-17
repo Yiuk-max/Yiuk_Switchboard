@@ -28,11 +28,12 @@ java -version
 ```powershell
 cd mod
 .\gradlew.bat build
+.\gradlew.bat test
 .\gradlew.bat runClient
 .\gradlew.bat jar
 ```
 
-`build` 编译并执行 Gradle 校验任务；`runClient` 启动开发客户端；`jar` 重新生成发布用模组包。JAR 输出在 `mod/build/libs/yiukswitchboard-<版本>.jar`。提交或分发前检查文件时间，并确认 JAR 内包含 `assets/yiukswitchboard/icon.png` 和 `META-INF/neoforge.mods.toml`。
+`build` 编译并执行 Gradle 校验任务；`test` 运行 JUnit 自动化测试；`runClient` 启动开发客户端；`jar` 重新生成发布用模组包。JAR 输出在 `mod/build/libs/yiukswitchboard-<版本>.jar`。提交或分发前检查文件时间，并确认 JAR 内包含 `assets/yiukswitchboard/icon.png` 和 `META-INF/neoforge.mods.toml`。
 
 ### 常见问题
 

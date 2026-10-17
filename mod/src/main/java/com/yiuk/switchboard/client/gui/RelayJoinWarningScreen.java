@@ -12,7 +12,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.multiplayer.ServerData;
 import net.minecraft.client.multiplayer.resolver.ServerAddress;
 import net.minecraft.network.chat.Component;
-import net.minecraft.network.chat.MutableComponent;
 
 import java.util.List;
 
@@ -87,19 +86,21 @@ public final class RelayJoinWarningScreen extends RelayScreen {
             int end = Math.min(modDetails.size(), start + rows);
             for (int i = start; i < end; i++) {
                 ModListSnapshot.Difference difference = modDetails.get(i);
-                MutableComponent entry = Component.literal(difference.id() + "  ");
-                if (difference.status() != ModListSnapshot.Status.EXTRA) entry = entry.append(difference.roomVersion() + "  ");
+                String version = difference.roomVersion().isBlank() ? "" : "  " + difference.roomVersion();
+                String modText = font.plainSubstrByWidth(difference.id() + version, Math.max(40, width - 190));
                 Component state = switch (difference.status()) {
-                    case MATCH -> Component.translatable("yiukswitchboard.mods.installed");
-                    case MISSING -> Component.translatable("yiukswitchboard.mods.missing");
-                    case VERSION_MISMATCH -> Component.translatable("yiukswitchboard.mods.version_mismatch", difference.localVersion());
-                    case EXTRA -> Component.translatable("yiukswitchboard.mods.extra", difference.localVersion());
-                    case INVALID -> Component.translatable("yiukswitchboard.mods.invalid_entry");
+                    case MATCH -> Component.translatable("yiukswitchboard.mods.status_match");
+                    case MISSING -> Component.translatable("yiukswitchboard.mods.status_missing");
+                    case VERSION_MISMATCH, EXTRA, INVALID -> Component.translatable("yiukswitchboard.mods.status_mismatch");
                 };
-                entry = entry.append(state);
-                String line = font.plainSubstrByWidth(entry.getString(), Math.max(40, width - 36));
-                int color = difference.status() == ModListSnapshot.Status.MATCH ? 0xA0A0A0 : 0xFFCC55;
-                graphics.drawString(font, Component.literal(line), 18, 54 + (i - start) * 14, color);
+                int color = switch (difference.status()) {
+                    case MATCH -> 0x55FF55;
+                    case MISSING -> 0xFF5555;
+                    case VERSION_MISMATCH, EXTRA, INVALID -> 0xFFFF55;
+                };
+                int rowY = 54 + (i - start) * 14;
+                graphics.drawString(font, Component.literal(modText), 26, rowY, 0xFFFFFF);
+                graphics.drawString(font, state, width - 26 - font.width(state), rowY, color);
             }
         }
         if (!error.isBlank()) graphics.drawCenteredString(font, Component.literal(error), center, height - 82, 0xFF7777);

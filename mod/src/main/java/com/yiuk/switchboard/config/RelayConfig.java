@@ -17,6 +17,7 @@ public final class RelayConfig {
     public String nickname = "";
     public String password = "";
     public boolean rememberPassword;
+    public boolean allowCommands;
 
     public static RelayConfig load() {
         if (!Files.exists(FILE)) return new RelayConfig();

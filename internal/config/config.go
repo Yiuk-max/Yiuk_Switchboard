@@ -3,9 +3,12 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+const examplePassword = "REPLACE_WITH_A_LONG_RANDOM_SECRET"
 
 type Config struct {
 	ControlPort           int    `yaml:"control_port"`
@@ -55,8 +58,8 @@ func (c Config) Validate() error {
 	if c.ControlPort >= c.RoomPortMin && c.ControlPort <= c.RoomPortMax {
 		return fmt.Errorf("control_port must not overlap the room port range")
 	}
-	if c.Password == "" {
-		return fmt.Errorf("password must not be empty")
+	if strings.TrimSpace(c.Password) == "" || c.Password == examplePassword || c.Password == "12345678" {
+		return fmt.Errorf("password must be set to a non-example secret")
 	}
 	if c.MaxRooms < 1 || c.MaxRooms > c.RoomPortMax-c.RoomPortMin+1 {
 		return fmt.Errorf("max_rooms must fit within the room port range")

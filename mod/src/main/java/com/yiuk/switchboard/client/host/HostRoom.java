@@ -265,6 +265,7 @@ public final class HostRoom implements AutoCloseable {
             if (!registerSocket(relay) || !registerSocket(local)) return;
             relay.connect(new InetSocketAddress(endpoint.host(), endpoint.port()), 8000);
             relay.setKeepAlive(true);
+            relay.setTcpNoDelay(true);
             relay.setSoTimeout(0);
             stage = "pair sid with relay";
             JsonObject data = RelayApi.message("data");
@@ -275,6 +276,7 @@ public final class HostRoom implements AutoCloseable {
             stage = "connect to local LAN port";
             local.connect(new InetSocketAddress("127.0.0.1", localPort), 5000);
             local.setKeepAlive(true);
+            local.setTcpNoDelay(true);
             if (!closed.get() && !closing.get()) {
                 stage = "forward player TCP stream";
                 copyBoth(local, relay);

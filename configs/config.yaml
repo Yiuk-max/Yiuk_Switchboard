@@ -2,6 +2,7 @@
 control_port: 25564
 room_port_min: 25570
 room_port_max: 25599
+# Replace this before deployment with a unique, randomly generated secret.
 password: "12345678"
 
 max_rooms: 30
