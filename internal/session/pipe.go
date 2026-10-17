@@ -29,7 +29,7 @@ func Pipe(a net.Conn, aReader io.Reader, b net.Conn, bReader io.Reader, idleTime
 type idleReader struct {
 	reader  io.Reader
 	conn    net.Conn
-	timeout time.Duration
+	timeout time.Duration //if there are no data for a while, close the connection,to clean the conn that has lost connection but not closed by the TCP layer
 }
 
 func (r idleReader) Read(p []byte) (int, error) {

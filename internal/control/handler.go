@@ -27,7 +27,7 @@ func NewHandler(c config.Config, rooms *room.Manager) *Handler {
 	return &Handler{config: c, rooms: rooms, limiter: auth.NewLimiter(c.AuthRatePerMin, time.Minute)}
 }
 
-func (h *Handler) ServeConn(conn net.Conn, onClose func()) {
+func (h *Handler) ServeConn(conn net.Conn, onClose func()) { //message handler for control connection
 	closeConn := true
 	releaseOnReturn := true
 	defer func() {

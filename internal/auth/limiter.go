@@ -34,7 +34,7 @@ func (l *Limiter) Allow(addr net.Addr) bool {
 	if now.Sub(b.started) >= l.window {
 		b = bucket{started: now}
 	}
-	if _, exists := l.byIP[ip]; !exists && len(l.byIP) >= 4096 {
+	if _, exists := l.byIP[ip]; !exists && len(l.byIP) >= 4096 { //if the map is too large, clean up old entries
 		for key, old := range l.byIP {
 			if now.Sub(old.started) >= l.window {
 				delete(l.byIP, key)

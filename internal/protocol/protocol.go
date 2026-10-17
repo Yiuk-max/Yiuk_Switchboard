@@ -104,7 +104,7 @@ func encodeRoom(r RoomSummary) []byte {
 	b = putInt(b, 9, r.ModCount)
 	return b
 }
-func marshal(m Message) ([]byte, error) {
+func marshal(m Message) ([]byte, error) { //to set the message type and marshal the message to protobuf format
 	t, err := typeNumber(m.T)
 	if err != nil {
 		return nil, err
@@ -312,8 +312,11 @@ func Write(w io.Writer, m Message) error {
 	if len(data) > MaxMessageBytes {
 		return ErrMessageTooLong
 	}
+	// Write the length prefix and the message data in a single write to avoid interleaving with other writes.
 	frame := putVarint(nil, uint64(len(data)))
+	// Append the message data to the frame.
 	frame = append(frame, data...)
+	//make sure the entire frame is written, even if the writer only accepts a partial write.
 	for len(frame) > 0 {
 		n, e := w.Write(frame)
 		if e != nil {

@@ -65,7 +65,7 @@ func (s *Server) Run(ctx context.Context) error {
 			_ = conn.Close()
 			continue
 		}
-		wg.Add(1)
+		wg.Add(1) //Add a goroutine to the wait group for each accepted connection. This ensures that the server will wait for all active connections to finish before shutting down.
 		go func() {
 			defer wg.Done()
 			s.handler.ServeConn(conn, func() { s.removeConn(conn) })

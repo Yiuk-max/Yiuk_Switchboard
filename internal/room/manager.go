@@ -31,16 +31,16 @@ type Options struct {
 }
 
 type room struct {
-	id, name, host, mc, loader, token string
-	port, max, players, localPort     int
-	hostIP                            net.IP
-	mods                              []protocol.Mod
-	owner                             Notify
+	id, name, host, mc, loader, token string         //base info
+	port, max, players, localPort     int            //player count and port info
+	hostIP                            net.IP         //host IP for local fast path
+	mods                              []protocol.Mod //mod list
+	owner                             Notify         //owner control connection callback
 	ownerKey                          string
-	graceTimer                        *time.Timer
-	listener                          net.Listener
-	pending                           map[string]chan net.Conn
-	active                            map[net.Conn]struct{}
+	graceTimer                        *time.Timer              //timer for owner reconnect grace period
+	listener                          net.Listener             //TCP listener for players
+	pending                           map[string]chan net.Conn //has been accepted by the room but not yet paired with the host
+	active                            map[net.Conn]struct{}    //active TCP conn (player and host) for cleanup on room close
 	closed                            bool
 	mu                                sync.Mutex
 }
@@ -48,9 +48,9 @@ type room struct {
 type Manager struct {
 	opts         Options
 	mu           sync.RWMutex
-	rooms        map[string]*room
-	closing      bool
-	done         chan struct{}
+	rooms        map[string]*room // room ID -> room
+	closing      bool             // true if CloseAll has been called
+	done         chan struct{}    // closed when closing is true
 	closeOnce    sync.Once
 	wg           sync.WaitGroup
 	limitLogMu   sync.Mutex
@@ -64,20 +64,21 @@ func NewManager(opts Options) *Manager {
 func (m *Manager) Create(name, host, mc, loader string, max int, mods []protocol.Mod, localPort int, hostIP net.IP, ownerKey string, notify Notify) (protocol.Message, error) {
 	if name == "" || host == "" || mc == "" || loader == "" || notify == nil || max < 1 || max > m.opts.MaxPlayers {
 		return protocol.Message{}, fmt.Errorf("invalid room fields")
-	}
+	} //basic checks
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if m.closing {
+	if m.closing { //manager is closing, reject new room creation
 		return protocol.Message{}, ErrManagerClosed
 	}
-	for _, existing := range m.rooms {
+	for _, existing := range m.rooms { //the owner has already created a room, reject new room creation
 		if existing.ownerKey == ownerKey {
 			return protocol.Message{}, fmt.Errorf("one room per control connection")
 		}
 	}
-	if len(m.rooms) >= m.opts.MaxRooms {
+	if len(m.rooms) >= m.opts.MaxRooms { //reached the maximum number of rooms, reject new room creation
 		return protocol.Message{}, ErrRoomLimit
 	}
+	// check finished,start to find an available port and create a listener
 	var ln net.Listener
 	var port int
 	for port = m.opts.PortMin; port <= m.opts.PortMax; port++ {
@@ -88,10 +89,10 @@ func (m *Manager) Create(name, host, mc, loader string, max int, mods []protocol
 				break
 			}
 		}
-		if used {
+		if used { //port is already in use by another room, try the next port
 			continue
 		}
-		var err error
+		var err error //find an available port and create a listener
 		ln, err = net.Listen("tcp", net.JoinHostPort("0.0.0.0", strconv.Itoa(port)))
 		if err == nil {
 			break
@@ -100,7 +101,7 @@ func (m *Manager) Create(name, host, mc, loader string, max int, mods []protocol
 	if ln == nil {
 		return protocol.Message{}, ErrPortsExhausted
 	}
-	id, err := randomHex(8)
+	id, err := randomHex(8) //generate a random room ID
 	if err != nil {
 		_ = ln.Close()
 		return protocol.Message{}, err
@@ -110,13 +111,14 @@ func (m *Manager) Create(name, host, mc, loader string, max int, mods []protocol
 		_ = ln.Close()
 		return protocol.Message{}, err
 	}
+	//create a new room and add it to the manager's room map
 	r := &room{id: id, name: name, host: host, mc: mc, loader: loader, token: token, port: port, max: max,
 		mods: append([]protocol.Mod(nil), mods...), owner: notify, ownerKey: ownerKey, listener: ln,
 		localPort: localPort, hostIP: append(net.IP(nil), hostIP...),
 		pending: make(map[string]chan net.Conn), active: make(map[net.Conn]struct{})}
 	m.rooms[id] = r
 	m.wg.Add(1)
-	go m.accept(r)
+	go m.accept(r) //room listener goroutine to accept incoming player connections
 	slog.Info("room created", "room_id", id, "port", port, "host", host)
 	return protocol.Message{T: "created", ID: id, Port: port, Token: token}, nil
 }
@@ -172,6 +174,7 @@ func (m *Manager) player(r *room, player net.Conn) {
 		return
 	}
 	ch := make(chan net.Conn, 1)
+	//check whether satisfies the room's Limit
 	r.mu.Lock()
 	if r.closed || len(r.pending) >= m.opts.MaxPending || r.players+len(r.pending) >= r.max || r.owner == nil {
 		r.mu.Unlock()
@@ -182,16 +185,18 @@ func (m *Manager) player(r *room, player net.Conn) {
 	r.pending[sid] = ch
 	notify := r.owner
 	r.mu.Unlock()
+	//notify the host about the new session
 	if err := notify(protocol.Message{T: "new_session", SID: sid}); err != nil {
 		m.removePending(r, sid)
 		m.untrack(r, player)
 		_ = player.Close()
 		return
 	}
+	//wait for the host to pair with the new session or timeout
 	timer := time.NewTimer(m.opts.PendingTimeout)
 	defer timer.Stop()
 	select {
-	case host := <-ch:
+	case host := <-ch: //host has paired with the new session
 		if paired, ok := host.(*readerConn); ok && paired.onClose != nil {
 			defer paired.onClose()
 		}
@@ -212,7 +217,7 @@ func (m *Manager) player(r *room, player net.Conn) {
 		m.untrack(r, player)
 		m.untrack(r, host)
 		slog.Info("session ended", "room_id", r.id, "sid", sid)
-	case <-timer.C:
+	case <-timer.C: //timeout
 		r.mu.Lock()
 		delete(r.pending, sid)
 		var pairedHost net.Conn
@@ -227,7 +232,7 @@ func (m *Manager) player(r *room, player net.Conn) {
 		}
 		m.untrack(r, player)
 		_ = player.Close()
-	case <-m.done:
+	case <-m.done: //manager is closing
 		m.removePending(r, sid)
 		m.untrack(r, player)
 		_ = player.Close()
@@ -308,7 +313,7 @@ func isLocalIP(ip net.IP) bool {
 func (m *Manager) Pair(sid string, conn net.Conn, reader io.Reader, onClose func()) bool {
 	m.mu.RLock()
 	rooms := make([]*room, 0, len(m.rooms))
-	for _, r := range m.rooms {
+	for _, r := range m.rooms { //
 		rooms = append(rooms, r)
 	}
 	m.mu.RUnlock()
@@ -316,9 +321,12 @@ func (m *Manager) Pair(sid string, conn net.Conn, reader io.Reader, onClose func
 		r.mu.Lock()
 		ch, ok := r.pending[sid]
 		if ok {
-			delete(r.pending, sid)
+			delete(r.pending, sid) //has been accepted by the room,so remove it from the pending map and increment the player count
 			r.players++
 			ch <- &readerConn{Conn: conn, reader: reader, onClose: onClose}
+			//two reasons to wrap the conn with readerConn:
+			//1. to read the bytes that have already been read from the conn and stored in the reader, so that the host can receive the full data stream from Minecraft client without losing any bytes.
+			//2. save the capability :close,ip,deadline, etc. to the host side
 		}
 		r.mu.Unlock()
 		if ok {
@@ -389,6 +397,7 @@ func (m *Manager) Close(id, ownerKey string) bool {
 	if !owner {
 		return false
 	}
+	// The owner is authorized to close the room, so destroy it.
 	m.destroy(r)
 	return true
 }
@@ -420,7 +429,7 @@ func (m *Manager) Resume(id, token, ownerKey string, notify Notify) bool {
 	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if r.closed || r.token != token {
+	if r.closed || r.token != token { //invalid token or room closed, reject the resume request
 		return false
 	}
 	// A valid room token authorizes the host to take over even if the old
@@ -438,6 +447,7 @@ func (m *Manager) Resume(id, token, ownerKey string, notify Notify) bool {
 	return true
 }
 
+// get room by id,return nil if not found
 func (m *Manager) get(id string) *room { m.mu.RLock(); defer m.mu.RUnlock(); return m.rooms[id] }
 
 // destroyDisconnected expires only the owner generation that scheduled this

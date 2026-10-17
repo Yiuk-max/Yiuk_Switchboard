@@ -57,8 +57,8 @@ mod/
    │  │  ├─ host/                  开 LAN、房主通知处理、数据连接转发
    │  │  └─ connect/               调用原版加入服务器流程
    │  ├─ config/                   本地地址、昵称和可选记住的密码
-   │  ├─ control/                  控制连接、JSONL 收发、心跳和消息路由
-   │  ├─ protocol/                 客户端 JSONL 消息模型
+   │  ├─ control/                  控制连接、Protobuf 帧收发、心跳和消息路由
+   │  ├─ protocol/                 客户端 Protobuf 消息模型
    │  └─ mods/                     本地模组清单扫描和对比
    └─ resources/
       ├─ META-INF/neoforge.mods.toml
@@ -74,7 +74,7 @@ mod/
 | 模组构建 | NeoForge 官方 1.21.1 MDK，ModDevGradle 或 NeoGradle；Gradle Wrapper 随工程提交 |
 | Java | JDK 21，64 位 |
 | 界面 | 原版 `Screen` 和常用控件；NeoForge 客户端 Screen 事件用于追加入口与服务器列表条目 |
-| 控制网络 | Java 标准 `Socket` + UTF-8 JSONL；控制消息单行最大 64 KiB |
+| 控制网络 | Java 标准 `Socket` + Protobuf 长度前缀帧；单帧最大 64 KiB |
 | 房主转发 | Java 21 虚拟线程或有界线程池；每个玩家一条服务器数据 Socket 和一个本机 LAN Socket，双向流复制 |
 | 配置 | 游戏配置目录 JSON；密码只在用户勾选“记住”时保存，并明确告知本地明文存储 |
 | Minecraft 内部调用 | 对 LAN 开放、获取端口、原版服务器连接均以 1.21.1 MDK 反编译源码为准，先做探针/小功能再封装 |
@@ -108,3 +108,11 @@ NeoForge 官方 1.21.1 文档要求 64 位 Java 21，提供 `runClient` 开发�
 | C6 模组对比与打包 | 模组差异界面、图标资源和 JAR 构建已完成 | 尚未在目标 1.21.1 NeoForge/PCL 实例验证图标、安装和实际加入兼容性 |
 
 转发延迟方面，Java 房主端数据 Socket 已启用 `TCP_NODELAY`，用户反馈当前体感可以接受；与原生 LAN 的量化 A/B 和抓包仍未完成，不能视为根因已确认。
+
+## 未来扩展方向（待办）
+
+- **多 Minecraft 版本共用中转服务：** Go 服务端保持版本无关，同一服务实例承载不同版本房间；客户端按 Minecraft 版本和加载器分别构建/发布 JAR。房间元数据上报并展示 Minecraft 版本、加载器，列表可按本地客户端兼容条件筛选。控制协议版本独立于 Minecraft 游戏版本。
+- **版本适配层与验收矩阵：** 当前客户端实现针对 Minecraft 1.21.1 NeoForge。新增版本时隔离 LAN 开放、端口获取和原版连接等版本相关 API，并为每个“Minecraft 版本 + 加载器”组合维护构建与实机验证流程。
+- **跨版本游戏协议转换（可选）：** 单纯 TCP 中转不能让不同游戏协议版本互通。若确需跨版本进入同一世界，另行评估协议转换代理及其对登录、实体、方块和玩法兼容性的维护成本；不作为多版本 JAR 适配的默认组成部分。
+
+详见仓库根目录的 `docs/联机诊断与待办清单.md` 中“P3：未来扩展方向”。
