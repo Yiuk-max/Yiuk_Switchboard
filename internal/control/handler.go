@@ -103,20 +103,24 @@ func (h *Handler) ServeConn(conn net.Conn, onClose func()) {
 			return
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(time.Duration(h.config.HeartbeatTimeoutSec) * time.Second))
-		if err := h.handle(client, clientID, first.Name, msg); err != nil {
+		if err := h.handle(client, clientID, first.Name, conn.RemoteAddr(), msg); err != nil {
 			return
 		}
 	}
 }
 
-func (h *Handler) handle(c *client, id, name string, msg protocol.Message) error {
+func (h *Handler) handle(c *client, id, name string, remote net.Addr, msg protocol.Message) error {
 	switch msg.T {
 	case "ping":
 		return c.send(protocol.Message{T: "pong"})
 	case "list":
 		return c.send(protocol.Message{T: "rooms", List: h.rooms.List()})
 	case "create":
-		created, err := h.rooms.Create(msg.Name, name, msg.MC, msg.Loader, msg.Max, msg.Mods, id, c.send)
+		var hostIP net.IP
+		if tcp, ok := remote.(*net.TCPAddr); ok {
+			hostIP = append(net.IP(nil), tcp.IP...)
+		}
+		created, err := h.rooms.Create(msg.Name, name, msg.MC, msg.Loader, msg.Max, msg.Mods, msg.LocalPort, hostIP, id, c.send)
 		if err != nil {
 			code := "BAD_REQUEST"
 			if errors.Is(err, room.ErrRoomLimit) {

@@ -31,40 +31,42 @@ type RoomSummary struct {
 }
 
 type Message struct {
-	T      string        `json:"t"`
-	PW     string        `json:"pw,omitempty"`
-	Name   string        `json:"name,omitempty"`
-	Ver    int           `json:"ver,omitempty"`
-	Max    int           `json:"max,omitempty"`
-	MC     string        `json:"mc,omitempty"`
-	Loader string        `json:"loader,omitempty"`
-	Mods   []Mod         `json:"mods,omitempty"`
-	ID     string        `json:"id,omitempty"`
-	SID    string        `json:"sid,omitempty"`
-	Token  string        `json:"token,omitempty"`
-	Port   int           `json:"port,omitempty"`
-	Code   string        `json:"code,omitempty"`
-	Msg    string        `json:"msg,omitempty"`
-	List   []RoomSummary `json:"list,omitempty"`
+	T         string        `json:"t"`
+	PW        string        `json:"pw,omitempty"`
+	Name      string        `json:"name,omitempty"`
+	Ver       int           `json:"ver,omitempty"`
+	Max       int           `json:"max,omitempty"`
+	MC        string        `json:"mc,omitempty"`
+	Loader    string        `json:"loader,omitempty"`
+	Mods      []Mod         `json:"mods,omitempty"`
+	ID        string        `json:"id,omitempty"`
+	SID       string        `json:"sid,omitempty"`
+	Token     string        `json:"token,omitempty"`
+	Port      int           `json:"port,omitempty"`
+	LocalPort int           `json:"local_port,omitempty"`
+	Code      string        `json:"code,omitempty"`
+	Msg       string        `json:"msg,omitempty"`
+	List      []RoomSummary `json:"list,omitempty"`
 }
 
 func (m Message) MarshalJSON() ([]byte, error) {
 	type wireMessage struct {
-		T      string         `json:"t"`
-		PW     string         `json:"pw,omitempty"`
-		Name   string         `json:"name,omitempty"`
-		Ver    int            `json:"ver,omitempty"`
-		Max    int            `json:"max,omitempty"`
-		MC     string         `json:"mc,omitempty"`
-		Loader string         `json:"loader,omitempty"`
-		Mods   *[]Mod         `json:"mods,omitempty"`
-		ID     string         `json:"id,omitempty"`
-		SID    string         `json:"sid,omitempty"`
-		Token  string         `json:"token,omitempty"`
-		Port   int            `json:"port,omitempty"`
-		Code   string         `json:"code,omitempty"`
-		Msg    string         `json:"msg,omitempty"`
-		List   *[]RoomSummary `json:"list,omitempty"`
+		T         string         `json:"t"`
+		PW        string         `json:"pw,omitempty"`
+		Name      string         `json:"name,omitempty"`
+		Ver       int            `json:"ver,omitempty"`
+		Max       int            `json:"max,omitempty"`
+		MC        string         `json:"mc,omitempty"`
+		Loader    string         `json:"loader,omitempty"`
+		Mods      *[]Mod         `json:"mods,omitempty"`
+		ID        string         `json:"id,omitempty"`
+		SID       string         `json:"sid,omitempty"`
+		Token     string         `json:"token,omitempty"`
+		Port      int            `json:"port,omitempty"`
+		LocalPort int            `json:"local_port,omitempty"`
+		Code      string         `json:"code,omitempty"`
+		Msg       string         `json:"msg,omitempty"`
+		List      *[]RoomSummary `json:"list,omitempty"`
 	}
 	var mods *[]Mod
 	if m.Mods != nil || m.T == "mods" {
@@ -83,7 +85,7 @@ func (m Message) MarshalJSON() ([]byte, error) {
 		rooms = &items
 	}
 	return json.Marshal(wireMessage{T: m.T, PW: m.PW, Name: m.Name, Ver: m.Ver, Max: m.Max, MC: m.MC,
-		Loader: m.Loader, Mods: mods, ID: m.ID, SID: m.SID, Token: m.Token, Port: m.Port,
+		Loader: m.Loader, Mods: mods, ID: m.ID, SID: m.SID, Token: m.Token, Port: m.Port, LocalPort: m.LocalPort,
 		Code: m.Code, Msg: m.Msg, List: rooms})
 }
 

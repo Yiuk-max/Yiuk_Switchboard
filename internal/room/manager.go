@@ -19,6 +19,7 @@ import (
 var (
 	ErrRoomLimit      = fmt.Errorf("room limit reached")
 	ErrPortsExhausted = fmt.Errorf("no available room port")
+	ErrManagerClosed  = fmt.Errorf("room manager is shutting down")
 )
 
 type Notify func(protocol.Message) error
@@ -31,7 +32,8 @@ type Options struct {
 
 type room struct {
 	id, name, host, mc, loader, token string
-	port, max, players                int
+	port, max, players, localPort     int
+	hostIP                            net.IP
 	mods                              []protocol.Mod
 	owner                             Notify
 	ownerKey                          string
@@ -47,18 +49,27 @@ type Manager struct {
 	opts         Options
 	mu           sync.RWMutex
 	rooms        map[string]*room
+	closing      bool
+	done         chan struct{}
+	closeOnce    sync.Once
+	wg           sync.WaitGroup
 	limitLogMu   sync.Mutex
 	lastLimitLog time.Time
 }
 
-func NewManager(opts Options) *Manager { return &Manager{opts: opts, rooms: make(map[string]*room)} }
+func NewManager(opts Options) *Manager {
+	return &Manager{opts: opts, rooms: make(map[string]*room), done: make(chan struct{})}
+}
 
-func (m *Manager) Create(name, host, mc, loader string, max int, mods []protocol.Mod, ownerKey string, notify Notify) (protocol.Message, error) {
+func (m *Manager) Create(name, host, mc, loader string, max int, mods []protocol.Mod, localPort int, hostIP net.IP, ownerKey string, notify Notify) (protocol.Message, error) {
 	if name == "" || host == "" || mc == "" || loader == "" || notify == nil || max < 1 || max > m.opts.MaxPlayers {
 		return protocol.Message{}, fmt.Errorf("invalid room fields")
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if m.closing {
+		return protocol.Message{}, ErrManagerClosed
+	}
 	for _, existing := range m.rooms {
 		if existing.ownerKey == ownerKey {
 			return protocol.Message{}, fmt.Errorf("one room per control connection")
@@ -101,14 +112,17 @@ func (m *Manager) Create(name, host, mc, loader string, max int, mods []protocol
 	}
 	r := &room{id: id, name: name, host: host, mc: mc, loader: loader, token: token, port: port, max: max,
 		mods: append([]protocol.Mod(nil), mods...), owner: notify, ownerKey: ownerKey, listener: ln,
+		localPort: localPort, hostIP: append(net.IP(nil), hostIP...),
 		pending: make(map[string]chan net.Conn), active: make(map[net.Conn]struct{})}
 	m.rooms[id] = r
+	m.wg.Add(1)
 	go m.accept(r)
 	slog.Info("room created", "room_id", id, "port", port, "host", host)
 	return protocol.Message{T: "created", ID: id, Port: port, Token: token}, nil
 }
 
 func (m *Manager) accept(r *room) {
+	defer m.wg.Done()
 	for {
 		conn, err := r.listener.Accept()
 		if err != nil {
@@ -123,7 +137,9 @@ func (m *Manager) accept(r *room) {
 			_ = conn.Close()
 			continue
 		}
+		m.wg.Add(1)
 		go func() {
+			defer m.wg.Done()
 			if budget != nil {
 				defer budget.Release()
 			}
@@ -144,6 +160,9 @@ func (m *Manager) logConnectionLimit() {
 func (m *Manager) player(r *room, player net.Conn) {
 	if !m.track(r, player, true) {
 		_ = player.Close()
+		return
+	}
+	if m.tryLocalForward(r, player) {
 		return
 	}
 	sid, err := randomHex(16)
@@ -208,7 +227,82 @@ func (m *Manager) player(r *room, player net.Conn) {
 		}
 		m.untrack(r, player)
 		_ = player.Close()
+	case <-m.done:
+		m.removePending(r, sid)
+		m.untrack(r, player)
+		_ = player.Close()
 	}
+}
+
+// When the relay and host control connection originate on this machine, let
+// the relay connect straight to the advertised LAN server. This removes the
+// Java host-side socket copier from the common local testing topology.
+func (m *Manager) tryLocalForward(r *room, player net.Conn) bool {
+	remote, ok := player.RemoteAddr().(*net.TCPAddr)
+	if !ok || r.localPort < 1 || r.localPort > 65535 || r.hostIP == nil || !isLocalIP(r.hostIP) ||
+		(!remote.IP.Equal(r.hostIP) && !remote.IP.IsLoopback()) {
+		return false
+	}
+	r.mu.Lock()
+	if r.closed || r.owner == nil || r.players+len(r.pending) >= r.max {
+		r.mu.Unlock()
+		return false
+	}
+	r.players++
+	r.mu.Unlock()
+	rollback := func() { r.mu.Lock(); r.players--; r.mu.Unlock() }
+	budget := m.opts.ConnectionBudget
+	if budget != nil && !budget.TryAcquire() {
+		rollback()
+		return false
+	}
+	local, err := net.DialTimeout("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(r.localPort)), 350*time.Millisecond)
+	if err != nil {
+		if budget != nil {
+			budget.Release()
+		}
+		rollback()
+		return false
+	}
+	if tcp, ok := local.(*net.TCPConn); ok {
+		_ = tcp.SetNoDelay(true)
+		_ = tcp.SetKeepAlive(true)
+	}
+	if !m.track(r, local, true) {
+		_ = local.Close()
+		if budget != nil {
+			budget.Release()
+		}
+		rollback()
+		return false
+	}
+	slog.Info("session using local host fast path", "room_id", r.id)
+	session.Pipe(player, nil, local, nil, m.opts.SessionIdleTimeout)
+	r.mu.Lock()
+	r.players--
+	r.mu.Unlock()
+	m.untrack(r, player)
+	m.untrack(r, local)
+	if budget != nil {
+		budget.Release()
+	}
+	return true
+}
+
+func isLocalIP(ip net.IP) bool {
+	if ip.IsLoopback() {
+		return true
+	}
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return false
+	}
+	for _, addr := range addrs {
+		if network, ok := addr.(*net.IPNet); ok && network.IP.Equal(ip) {
+			return true
+		}
+	}
+	return false
 }
 
 func (m *Manager) Pair(sid string, conn net.Conn, reader io.Reader, onClose func()) bool {
@@ -302,11 +396,18 @@ func (m *Manager) Close(id, ownerKey string) bool {
 func (m *Manager) OwnerDisconnected(ownerKey string) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if m.closing {
+		return
+	}
 	for _, r := range m.rooms {
 		r.mu.Lock()
 		if r.ownerKey == ownerKey && r.owner != nil && !r.closed {
 			r.owner = nil
-			r.graceTimer = time.AfterFunc(m.opts.ReconnectGrace, func() { m.destroyDisconnected(r, ownerKey) })
+			m.wg.Add(1)
+			r.graceTimer = time.AfterFunc(m.opts.ReconnectGrace, func() {
+				defer m.wg.Done()
+				m.destroyDisconnected(r, ownerKey)
+			})
 		}
 		r.mu.Unlock()
 	}
@@ -327,7 +428,9 @@ func (m *Manager) Resume(id, token, ownerKey string, notify Notify) bool {
 	// The previous connection's deferred OwnerDisconnected call is fenced by
 	// ownerKey below, so it cannot mark this replacement connection offline.
 	if r.graceTimer != nil {
-		r.graceTimer.Stop()
+		if r.graceTimer.Stop() {
+			m.wg.Done()
+		}
 		r.graceTimer = nil
 	}
 	r.ownerKey = ownerKey
@@ -354,9 +457,9 @@ func (m *Manager) destroyDisconnected(r *room, ownerKey string) {
 	}
 	delete(m.rooms, r.id)
 	r.closed = true
-	if r.graceTimer != nil {
-		r.graceTimer.Stop()
-	}
+	// The grace timer invoked this callback; its wait-group slot is released
+	// by the callback defer after this function returns.
+	r.graceTimer = nil
 	_ = r.listener.Close()
 	for sid := range r.pending {
 		delete(r.pending, sid)
@@ -380,7 +483,10 @@ func (m *Manager) destroy(r *room) {
 	r.mu.Lock()
 	r.closed = true
 	if r.graceTimer != nil {
-		r.graceTimer.Stop()
+		if r.graceTimer.Stop() {
+			m.wg.Done()
+		}
+		r.graceTimer = nil
 	}
 	_ = r.listener.Close()
 	for sid := range r.pending {
@@ -394,15 +500,18 @@ func (m *Manager) destroy(r *room) {
 }
 
 func (m *Manager) CloseAll() {
-	m.mu.RLock()
+	m.mu.Lock()
+	m.closing = true
+	m.closeOnce.Do(func() { close(m.done) })
 	rooms := make([]*room, 0, len(m.rooms))
 	for _, r := range m.rooms {
 		rooms = append(rooms, r)
 	}
-	m.mu.RUnlock()
+	m.mu.Unlock()
 	for _, r := range rooms {
 		m.destroy(r)
 	}
+	m.wg.Wait()
 }
 
 func randomHex(bytesLen int) (string, error) {

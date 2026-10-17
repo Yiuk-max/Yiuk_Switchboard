@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -27,6 +28,8 @@ type Server struct {
 	conns            map[net.Conn]struct{}
 	lastLimitLog     time.Time
 	closed           bool
+	shutdownOnce     sync.Once
+	shutdownDone     chan struct{}
 }
 
 func New(cfg config.Config) (*Server, error) {
@@ -36,7 +39,8 @@ func New(cfg config.Config) (*Server, error) {
 	}
 	budget := connlimit.New(cfg.MaxConnections)
 	rm := room.NewManager(room.Options{PortMin: cfg.RoomPortMin, PortMax: cfg.RoomPortMax, MaxRooms: cfg.MaxRooms, MaxPlayers: cfg.MaxPlayersPerRoom, MaxPending: cfg.MaxPendingPerRoom, PendingTimeout: time.Duration(cfg.PendingTimeoutSec) * time.Second, ReconnectGrace: time.Duration(cfg.ReconnectGraceSec) * time.Second, SessionIdleTimeout: time.Duration(cfg.SessionIdleTimeoutSec) * time.Second, ConnectionBudget: budget})
-	return &Server{cfg: cfg, listener: ln, rooms: rm, handler: control.NewHandler(cfg, rm), connectionBudget: budget, conns: make(map[net.Conn]struct{})}, nil
+	return &Server{cfg: cfg, listener: ln, rooms: rm, handler: control.NewHandler(cfg, rm), connectionBudget: budget,
+		conns: make(map[net.Conn]struct{}), shutdownDone: make(chan struct{})}, nil
 }
 
 func (s *Server) Run(ctx context.Context) error {
@@ -96,31 +100,46 @@ func (s *Server) removeConn(conn net.Conn) {
 }
 
 func (s *Server) shutdown() {
-	s.mu.Lock()
-	if s.closed {
+	s.shutdownOnce.Do(func() {
+		s.mu.Lock()
+		s.closed = true
+		_ = s.listener.Close()
+		for conn := range s.conns {
+			_ = conn.Close()
+		}
 		s.mu.Unlock()
-		return
-	}
-	s.closed = true
-	_ = s.listener.Close()
-	for conn := range s.conns {
-		_ = conn.Close()
-	}
-	s.mu.Unlock()
-	s.rooms.CloseAll()
+		s.rooms.CloseAll()
+		close(s.shutdownDone)
+	})
+	<-s.shutdownDone
 }
 
-func RunFromConfig(path string) error {
+func RunFromConfig(path string) (runErr error) {
 	cfg, err := config.Load(path)
 	if err != nil {
 		return err
 	}
+	var logFile *os.File
+	var logBuffer *bufferedLogWriter
 	if cfg.LogFile != "" {
-		f, e := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-		if e != nil {
-			return fmt.Errorf("open log file: %w", e)
+		logFile, err = os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+		if err != nil {
+			return fmt.Errorf("open log file: %w", err)
 		}
-		slog.SetDefault(slog.New(slog.NewJSONHandler(f, nil)))
+		logBuffer = &bufferedLogWriter{dst: logFile, threshold: 64 << 10}
+		slog.SetDefault(slog.New(slog.NewJSONHandler(logBuffer, nil)))
+		defer func() {
+			slog.Info("relay process stopped; flushing logs")
+			if flushErr := logBuffer.Flush(); flushErr != nil {
+				runErr = errors.Join(runErr, fmt.Errorf("flush logs: %w", flushErr))
+			}
+			if syncErr := logFile.Sync(); syncErr != nil {
+				runErr = errors.Join(runErr, fmt.Errorf("sync log file: %w", syncErr))
+			}
+			if closeErr := logFile.Close(); closeErr != nil {
+				runErr = errors.Join(runErr, fmt.Errorf("close log file: %w", closeErr))
+			}
+		}()
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

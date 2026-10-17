@@ -79,6 +79,7 @@ public final class HostRoom implements AutoCloseable {
             JsonObject request = RelayApi.message("create");
             request.addProperty("name", roomName);
             request.addProperty("max", maxPlayers);
+            request.addProperty("local_port", localPort);
             request.addProperty("mc", "1.21.1");
             request.addProperty("loader", "neoforge");
             request.add("mods", ModListSnapshot.toJson());
