@@ -1,0 +1,71 @@
+/* 嫩苇绿 #E2E7BF + 幽谷灰 #2B313F */
+QWidget {
+    background: #E2E7BF;
+    color: #2B313F;
+    font-family: "Segoe UI", "Microsoft YaHei UI", sans-serif;
+    font-size: 14px;
+}
+
+QMainWindow, QTabWidget::pane { background: #E2E7BF; }
+QTabWidget::pane { border: 1px solid #AEB596; border-radius: 8px; top: -1px; }
+QTabBar::tab {
+    background: #D1D8AE;
+    color: #2B313F;
+    border: 1px solid #AEB596;
+    border-bottom: 0;
+    border-top-left-radius: 7px;
+    border-top-right-radius: 7px;
+    padding: 9px 18px;
+    margin-right: 4px;
+}
+QTabBar::tab:selected { background: #2B313F; color: #E2E7BF; }
+QTabBar::tab:hover:!selected { background: #DCE2BC; }
+
+QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox, QComboBox {
+    background: #F1F3E3;
+    color: #2B313F;
+    border: 1px solid #AEB596;
+    border-radius: 6px;
+    padding: 7px 9px;
+    selection-background-color: #697451;
+    selection-color: #F1F3E3;
+}
+QLineEdit:focus, QTextEdit:focus, QSpinBox:focus, QDoubleSpinBox:focus, QComboBox:focus {
+    border: 2px solid #697451;
+}
+QLineEdit:disabled, QSpinBox:disabled { background: #D4D9BC; color: #777D69; }
+
+QPushButton {
+    background: #2B313F;
+    color: #E2E7BF;
+    border: 1px solid #2B313F;
+    border-radius: 7px;
+    padding: 9px 16px;
+    font-weight: 600;
+}
+QPushButton:hover { background: #41495A; border-color: #41495A; }
+QPushButton:pressed { background: #1F2430; }
+QPushButton:disabled { background: #C4CAA8; color: #777D69; border-color: #B5BC99; }
+
+QGroupBox {
+    background: #E8ECCB;
+    border: 1px solid #AEB596;
+    border-radius: 9px;
+    margin-top: 14px;
+    padding: 14px;
+    font-weight: 700;
+}
+QGroupBox::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 5px;
+    background: #E2E7BF;
+    color: #2B313F;
+}
+QLabel#metric { background: transparent; font-size: 21px; font-weight: 700; color: #2B313F; }
+QLabel#hint { background: transparent; color: #626A52; }
+QStatusBar { background: #2B313F; color: #E2E7BF; }
+QScrollArea, QScrollArea > QWidget > QWidget { background: #E8ECCB; }
+QScrollBar:vertical { background: #D1D8AE; width: 12px; margin: 2px; border-radius: 6px; }
+QScrollBar::handle:vertical { background: #828B69; min-height: 24px; border-radius: 5px; }
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }

@@ -1,0 +1,9 @@
+<RCC><qresource prefix="/">
+  <file>style.qss</file>
+  <file alias="icons/start.png">resources/icons/start.png</file>
+  <file alias="icons/stop.png">resources/icons/stop.png</file>
+  <file alias="icons/restart.png">resources/icons/restart.png</file>
+  <file alias="icons/reload.png">resources/icons/reload.png</file>
+  <file alias="icons/save.png">resources/icons/save.png</file>
+  <file alias="icons/login.png">resources/icons/login.png</file>
+</qresource></RCC>

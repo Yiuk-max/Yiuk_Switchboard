@@ -2,8 +2,9 @@
 control_port: 25564
 room_port_min: 25570
 room_port_max: 25599
-# Replace this before deployment with a unique, randomly generated secret.
-password: "12345678"
+# Use separate, unique secrets. Host password can create and recover rooms.
+host_password: "REPLACE_WITH_A_LONG_RANDOM_HOST_SECRET"
+player_password: "REPLACE_WITH_A_LONG_RANDOM_PLAYER_SECRET"
 
 max_rooms: 30
 max_players_per_room: 8

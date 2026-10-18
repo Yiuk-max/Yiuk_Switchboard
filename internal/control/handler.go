@@ -77,7 +77,9 @@ func (h *Handler) ServeConn(conn net.Conn, onClose func()) { //message handler f
 		_ = protocol.Write(conn, protocol.Message{T: "err", Code: "BAD_VERSION", Msg: "unsupported protocol version"})
 		return
 	}
-	if subtle.ConstantTimeCompare([]byte(first.PW), []byte(h.config.Password)) != 1 {
+	hostPassword := subtle.ConstantTimeCompare([]byte(first.PW), []byte(h.config.HostPassword)) == 1
+	playerPassword := subtle.ConstantTimeCompare([]byte(first.PW), []byte(h.config.PlayerPassword)) == 1
+	if !hostPassword && !playerPassword {
 		slog.Warn("authentication failed", "remote", conn.RemoteAddr().String())
 		_ = protocol.Write(conn, protocol.Message{T: "err", Code: "BAD_PASSWORD", Msg: "password incorrect"})
 		return
@@ -88,7 +90,7 @@ func (h *Handler) ServeConn(conn net.Conn, onClose func()) { //message handler f
 	}
 	clientID := conn.RemoteAddr().String() + "/" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	client := &client{conn: conn}
-	if err := client.send(protocol.Message{T: "ok"}); err != nil {
+	if err := client.send(protocol.Message{T: "ok", Msg: "登录成功"}); err != nil {
 		return
 	}
 	slog.Info("client authenticated", "remote", conn.RemoteAddr().String(), "name", first.Name)
@@ -103,19 +105,22 @@ func (h *Handler) ServeConn(conn net.Conn, onClose func()) { //message handler f
 			return
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(time.Duration(h.config.HeartbeatTimeoutSec) * time.Second))
-		if err := h.handle(client, clientID, first.Name, conn.RemoteAddr(), msg); err != nil {
+		if err := h.handle(client, clientID, first.Name, hostPassword, conn.RemoteAddr(), msg); err != nil {
 			return
 		}
 	}
 }
 
-func (h *Handler) handle(c *client, id, name string, remote net.Addr, msg protocol.Message) error {
+func (h *Handler) handle(c *client, id, name string, canHost bool, remote net.Addr, msg protocol.Message) error {
 	switch msg.T {
 	case "ping":
 		return c.send(protocol.Message{T: "pong"})
 	case "list":
 		return c.send(protocol.Message{T: "rooms", List: h.rooms.List()})
 	case "create":
+		if !canHost {
+			return c.send(protocol.Message{T: "err", Code: "HOST_PERMISSION_REQUIRED", Msg: "当前登录权限不能创建房间，请使用服主密码"})
+		}
 		var hostIP net.IP
 		if tcp, ok := remote.(*net.TCPAddr); ok {
 			hostIP = append(net.IP(nil), tcp.IP...)
@@ -146,6 +151,9 @@ func (h *Handler) handle(c *client, id, name string, remote net.Addr, msg protoc
 		}
 		return c.send(protocol.Message{T: "ok", ID: msg.ID})
 	case "resume":
+		if !canHost {
+			return c.send(protocol.Message{T: "err", Code: "HOST_PERMISSION_REQUIRED", Msg: "当前登录权限不能恢复服主房间，请使用服主密码"})
+		}
 		if !h.rooms.Resume(msg.ID, msg.Token, id, c.send) {
 			return c.send(protocol.Message{T: "err", Code: "BAD_TOKEN", Msg: "room could not be resumed"})
 		}

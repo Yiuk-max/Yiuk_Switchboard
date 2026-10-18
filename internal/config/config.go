@@ -1,6 +1,7 @@
 package config
 
 import (
+	"crypto/subtle"
 	"fmt"
 	"os"
 	"strings"
@@ -14,7 +15,8 @@ type Config struct {
 	ControlPort           int    `yaml:"control_port"`
 	RoomPortMin           int    `yaml:"room_port_min"`
 	RoomPortMax           int    `yaml:"room_port_max"`
-	Password              string `yaml:"password"`
+	HostPassword          string `yaml:"host_password"`
+	PlayerPassword        string `yaml:"player_password"`
 	MaxRooms              int    `yaml:"max_rooms"`
 	MaxPlayersPerRoom     int    `yaml:"max_players_per_room"`
 	MaxPendingPerRoom     int    `yaml:"max_pending_per_room"`
@@ -58,8 +60,14 @@ func (c Config) Validate() error {
 	if c.ControlPort >= c.RoomPortMin && c.ControlPort <= c.RoomPortMax {
 		return fmt.Errorf("control_port must not overlap the room port range")
 	}
-	if strings.TrimSpace(c.Password) == "" || c.Password == examplePassword || c.Password == "12345678" {
-		return fmt.Errorf("password must be set to a non-example secret")
+	if invalidPassword(c.HostPassword) {
+		return fmt.Errorf("host_password must be set to a non-example secret")
+	}
+	if invalidPassword(c.PlayerPassword) {
+		return fmt.Errorf("player_password must be set to a non-example secret")
+	}
+	if subtle.ConstantTimeCompare([]byte(c.HostPassword), []byte(c.PlayerPassword)) == 1 {
+		return fmt.Errorf("host_password and player_password must be different")
 	}
 	if c.MaxRooms < 1 || c.MaxRooms > c.RoomPortMax-c.RoomPortMin+1 {
 		return fmt.Errorf("max_rooms must fit within the room port range")
@@ -74,4 +82,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("session_idle_timeout_sec must be between 30 and 3600")
 	}
 	return nil
+}
+
+func invalidPassword(password string) bool {
+	return strings.TrimSpace(password) == "" || password == examplePassword || strings.HasPrefix(password, "REPLACE_WITH_") || password == "12345678" || password == "123456789"
 }

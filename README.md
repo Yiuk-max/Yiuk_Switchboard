@@ -53,13 +53,14 @@ flowchart LR
 
 ### 2. 创建服务端配置
 
-将 [`configs/config.yaml`](configs/config.yaml) 复制到服务运行目录并命名为 `config.yaml`。至少要把示例密码改成只用于本项目的随机强密码：
+将 [`configs/config.yaml`](configs/config.yaml) 复制到服务运行目录并命名为 `config.yaml`。分别设置服主和玩家使用的随机强密码：
 
 ```yaml
 control_port: 25564
 room_port_min: 25570
 room_port_max: 25599
-password: "替换为随机生成的长密码"
+host_password: "替换为服主随机长密码"
+player_password: "替换为玩家随机长密码"
 
 max_rooms: 30
 max_players_per_room: 8
@@ -196,7 +197,7 @@ When the relay and host are on the same machine, the relay can try connecting di
 - The control protocol is version **2**. It is incompatible with the older JSONL server and mod; use a server executable and client JAR built for the same protocol version.
 - After a player connection is paired, the relay forwards bytes without parsing the Minecraft game protocol.
 - Room and identity state are kept in memory. Players must create rooms again after a relay restart.
-- Control connections do not use TLS, so the password travels over plain TCP. Use a unique, strong password for this service.
+- Control connections do not use TLS, so passwords travel over plain TCP. Use unique, strong passwords for this service.
 
 ## Deploy the server
 
@@ -213,13 +214,14 @@ Allow inbound TCP for the control port and the **entire room port range** in bot
 
 ### 2. Create the server configuration
 
-Copy [`configs/config.yaml`](configs/config.yaml) to the server's working directory as `config.yaml`. At minimum, replace the example password with a unique random secret:
+Copy [`configs/config.yaml`](configs/config.yaml) to the server's working directory as `config.yaml`. Set separate unique random secrets for hosts and players:
 
 ```yaml
 control_port: 25564
 room_port_min: 25570
 room_port_max: 25599
-password: "replace-with-a-long-random-secret"
+host_password: "replace-with-a-long-random-host-secret"
+player_password: "replace-with-a-long-random-player-secret"
 
 max_rooms: 30
 max_players_per_room: 8
@@ -234,7 +236,7 @@ auth_rate_per_min: 10
 log_file: "relay.log"
 ```
 
-The template password `12345678` is rejected by the server. `log_file` is resolved relative to the process working directory; an empty string disables file logging. Restrict the config file to the service account because it contains the shared password.
+Example passwords and identical host/player passwords are rejected by the server. The host password grants room creation and recovery; the player password grants regular login and room browsing. `log_file` is resolved relative to the process working directory; an empty string disables file logging. Restrict the config file to the service account because it contains both passwords.
 
 ### 3. Build and start
 
@@ -262,8 +264,8 @@ Build or obtain a server executable compatible with the protocol version 2 clien
 
 1. Install the **Minecraft 1.21.1** and compatible **NeoForge 21.1** client on the host and every player computer.
 2. Download or build the same `yiukswitchboard-*.jar` version and put it in each instance's `mods` directory.
-3. Launch the game and use the relay entry provided by the mod to add the server address, control port, room password, and nickname. Enter `host-or-IP:control-port`, for example `relay.example.com:25564`.
-4. The host and players must use the same relay address and password. Do not enter the host's local LAN port as the relay address.
+3. Launch the game and use the relay entry provided by the mod to add the server address, control port, login password, and nickname. Enter `host-or-IP:control-port`, for example `relay.example.com:25564`.
+4. Hosts enter the host password when creating a room; players enter the player password to log in and browse rooms. The login screen remains the same. Do not enter the host's local LAN port as the relay address.
 
 Mod settings are stored at `config/yiukswitchboard.json` in the game directory. If “remember password” is enabled, credentials are stored in that local file; disable it on shared computers.
 

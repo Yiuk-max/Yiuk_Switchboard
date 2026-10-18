@@ -20,3 +20,6 @@ mod/.toolchain/
 mod/build/
 mod/run/
 mod/out/
+
+# Qt client local build output
+/ops/client/build/
