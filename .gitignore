@@ -23,3 +23,4 @@ mod/out/
 
 # Qt client local build output
 /ops/client/build/
+/ops/client/build-check/
