@@ -132,7 +132,7 @@ GOOS=linux GOARCH=amd64 go build -o relay ./cmd/relay
 
 ```sh
 go build ./...
-go build -o relay ./cmd/relay
+go build -o relay ./cmd/relay 
 ```
 
 构建客户端模组需要 64 位 Java 21 JDK。在 Windows PowerShell 中：
