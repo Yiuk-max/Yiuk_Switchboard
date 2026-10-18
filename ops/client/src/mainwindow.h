@@ -13,7 +13,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 public: explicit MainWindow(QWidget* parent = nullptr);
 private:
-    QSslSocket socket; QTimer refreshTimer; bool authenticated = false; QByteArray incoming;
+    QSslSocket socket; QTimer refreshTimer; bool authenticated = false; QByteArray incoming; QString sslFailureDetails;
     quint32 nextRequestId = 1; QHash<quint32,std::function<void(int,const QByteArray&)>> pending;
     QQueue<QByteArray> outgoing;
     QLineEdit *url, *hostPassword, *hostPasswordConfig, *playerPasswordConfig, *logFile;

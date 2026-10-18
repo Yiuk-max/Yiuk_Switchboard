@@ -1,0 +1,5 @@
+E:/Yiuk_Switchboard/ops/client/build-check/CMakeFiles/yiuk-ops.dir
+E:/Yiuk_Switchboard/ops/client/build-check/CMakeFiles/edit_cache.dir
+E:/Yiuk_Switchboard/ops/client/build-check/CMakeFiles/rebuild_cache.dir
+E:/Yiuk_Switchboard/ops/client/build-check/CMakeFiles/yiuk-ops_autogen_timestamp_deps.dir
+E:/Yiuk_Switchboard/ops/client/build-check/CMakeFiles/yiuk-ops_autogen.dir

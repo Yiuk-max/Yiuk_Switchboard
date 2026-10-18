@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "loadchart.h"
 #include <QAbstractSocket>
+#include <QCryptographicHash>
 #include <QFormLayout>
 #include <QGroupBox>
 #include <QHBoxLayout>
@@ -12,8 +13,12 @@
 #include <QMessageBox>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSslError>
+#include <QSslCertificate>
+#include <QSettings>
 #include <QSpinBox>
 #include <QStatusBar>
+#include <QStringList>
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QUrl>
@@ -68,13 +73,75 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setCentralWidget(root);statusBar()->showMessage("先到“登录”页输入 relay 的服主密码；连接使用 TLS 加密 TCP");
 
     connect(&refreshTimer,&QTimer::timeout,this,&MainWindow::refresh);
-    connect(&socket,&QSslSocket::encrypted,this,[this]{flushRequests();statusBar()->showMessage("TLS 加密通道已建立",4000);});
+    connect(&socket,&QSslSocket::encrypted,this,[this]{sslFailureDetails.clear();flushRequests();statusBar()->showMessage("TLS 加密通道已建立",4000);});
+    connect(&socket,&QSslSocket::sslErrors,this,[this](const QList<QSslError>& errors){
+        QStringList details;
+        for(const auto& error:errors)details.push_back(error.errorString());
+        sslFailureDetails=details.join("；");
+
+        const auto certificate=socket.peerCertificate();
+        if(certificate.isNull())return;
+        bool onlyTrustChainErrors=true;
+        for(const auto& error:errors) {
+            switch(error.error()) {
+            case QSslError::SelfSignedCertificate:
+            case QSslError::SelfSignedCertificateInChain:
+            case QSslError::UnableToGetLocalIssuerCertificate:
+            case QSslError::UnableToVerifyFirstCertificate:
+            case QSslError::CertificateUntrusted:
+                break;
+            default:
+                onlyTrustChainErrors=false;
+                break;
+            }
+        }
+        if(!onlyTrustChainErrors)return;
+
+        const QByteArray fingerprint=certificate.digest(QCryptographicHash::Sha256);
+        const QString fingerprintText=QString::fromLatin1(fingerprint.toHex(':')).toUpper();
+        const QString pinKey="tlsPins/"+url->text().trimmed();
+        QSettings settings("YiukSwitchboard","YiukOps");
+        const QByteArray trustedFingerprint=settings.value(pinKey).toByteArray();
+        if(!trustedFingerprint.isEmpty()) {
+            if(trustedFingerprint==fingerprint) {
+                socket.ignoreSslErrors(errors);
+                sslFailureDetails.clear();
+            } else {
+                sslFailureDetails="此服务器证书与已固定的指纹不一致。当前 SHA-256 指纹："+fingerprintText;
+            }
+            return;
+        }
+
+        const QString subject=certificate.subjectInfo(QSslCertificate::CommonName).join(", ");
+        const auto answer=QMessageBox::question(this,"首次信任服务器证书",
+            QString("服务器使用自签名 TLS 证书。\n名称：%1\nSHA-256：\n%2\n\n只有在你确认这是自己的服务器时才继续。是否信任这张证书？")
+                .arg(subject.isEmpty()?"（无）":subject,fingerprintText),
+            QMessageBox::Yes|QMessageBox::No,QMessageBox::No);
+        if(answer==QMessageBox::Yes) {
+            settings.setValue(pinKey,fingerprint);
+            socket.ignoreSslErrors(errors);
+            sslFailureDetails.clear();
+            statusBar()->showMessage("已固定此服务器的 TLS 证书指纹",5000);
+        } else {
+            sslFailureDetails="你拒绝了此服务器证书；SHA-256："+fingerprintText;
+        }
+    });
     connect(&socket,&QSslSocket::readyRead,this,&MainWindow::readResponses);
     connect(&socket,&QSslSocket::disconnected,this,[this]{setAuthenticated(false);processStatus->setText("未连接");});
-    connect(&socket,&QSslSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){if(!pending.isEmpty())failPending(socket.errorString());});
+    connect(&socket,&QSslSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){
+        if(pending.isEmpty())return;
+        QString error=socket.errorString();
+        if(!sslFailureDetails.isEmpty())error+="\nTLS 证书校验："+sslFailureDetails;
+        failPending(error);
+    });
 }
 
-void MainWindow::showError(const QString& message) { QMessageBox::warning(this,"运维请求失败",message);statusBar()->showMessage(message,8000); }
+void MainWindow::showError(const QString& message) {
+    // Keep failures out of a nested modal event loop while the TLS socket is
+    // resolving callbacks; the status bar keeps the error visible without
+    // re-entering request processing.
+    statusBar()->showMessage("运维请求失败："+message,15000);
+}
 
 void MainWindow::request(const QString& type,const QByteArray& body,std::function<void(int,const QByteArray&)> done) {
     QJsonObject message;const quint32 id=nextRequestId++;message.insert("version",1);message.insert("id",static_cast<qint64>(id));message.insert("type",type);
@@ -83,6 +150,7 @@ void MainWindow::request(const QString& type,const QByteArray& body,std::functio
     QByteArray frame(4,Qt::Uninitialized);qToBigEndian<quint32>(static_cast<quint32>(payload.size()),reinterpret_cast<uchar*>(frame.data()));frame+=payload;
     pending.insert(id,std::move(done));outgoing.enqueue(frame);
     if(socket.state()==QAbstractSocket::UnconnectedState) {
+        sslFailureDetails.clear();
         QUrl endpoint("tcp://"+url->text().trimmed());
         if(endpoint.host().isEmpty()||endpoint.port()<1||endpoint.port()>65535){failPending("请输入有效的主机名:端口，例如 ops.example.com:29564");return;}
         socket.setPeerVerifyMode(QSslSocket::VerifyPeer);socket.connectToHostEncrypted(endpoint.host(),static_cast<quint16>(endpoint.port()));
