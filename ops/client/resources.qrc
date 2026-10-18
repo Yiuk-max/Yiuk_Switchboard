@@ -6,4 +6,6 @@
   <file alias="icons/reload.png">resources/icons/reload.png</file>
   <file alias="icons/save.png">resources/icons/save.png</file>
   <file alias="icons/login.png">resources/icons/login.png</file>
+  <file alias="icons/steve-portrait.png">resources/icons/steve-portrait.png</file>
+  <file alias="icons/steve-head.png">resources/icons/steve-head.png</file>
 </qresource></RCC>

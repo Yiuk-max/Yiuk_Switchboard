@@ -19,8 +19,8 @@ private:
     QLineEdit *url, *hostPassword, *hostPasswordConfig, *playerPasswordConfig, *logFile;
     QSpinBox *controlPort, *roomPortMin, *roomPortMax, *maxRooms, *maxPlayersPerRoom, *maxPendingPerRoom;
     QSpinBox *pendingTimeoutSec, *reconnectGraceSec, *heartbeatTimeoutSec, *sessionIdleTimeoutSec, *maxConnections, *authRatePerMin;
-    QLabel *processStatus, *cpuStatus, *memoryStatus; QPushButton* loginButton; QCheckBox* rememberCredentials;
-    QTabWidget* pages; QWidget* protectedControls; LoadChart* chart;
+    QPushButton* loginButton; QCheckBox* rememberCredentials;
+    QTabWidget* pages; QWidget* operationControls; QWidget* protectedControls; LoadChart* chart;
     void login(); void request(const QString& type, const QByteArray& body,
                                std::function<void(int,const QByteArray&)> done);
     void command(const QString& action); void refresh(); void loadConfig(); void saveConfig();

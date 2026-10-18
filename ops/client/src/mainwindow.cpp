@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QMessageBox>
+#include <QNetworkProxy>
 #include <QPushButton>
 #include <QScrollArea>
 #include <QSslError>
@@ -23,6 +24,7 @@
 #include <QTabWidget>
 #include <QVBoxLayout>
 #include <QUrl>
+#include <QWheelEvent>
 #include <QtEndian>
 #ifdef Q_OS_WIN
 #include <windows.h>
@@ -30,6 +32,13 @@
 #endif
 
 namespace {
+class NoWheelSpinBox : public QSpinBox {
+public:
+    using QSpinBox::QSpinBox;
+protected:
+    void wheelEvent(QWheelEvent* event) override { event->ignore(); }
+};
+
 QSettings appSettings() { return QSettings("YiukSwitchboard","YiukOps"); }
 
 bool protectPassword(const QString& password,QByteArray& protectedValue) {
@@ -66,26 +75,23 @@ bool unprotectPassword(const QByteArray& protectedValue,QString& password) {
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("Yiuk Switchboard 运维中心"); resize(980, 820);
     auto* root = new QWidget(this); auto* rootLayout = new QVBoxLayout(root); rootLayout->setContentsMargins(18,16,18,14);
-    auto* title = new QLabel("服务器运维中心"); QFont titleFont=title->font();titleFont.setPointSize(21);titleFont.setBold(true);title->setFont(titleFont);rootLayout->addWidget(title);
     pages=new QTabWidget;rootLayout->addWidget(pages,1);
 
     auto* serverPage=new QWidget;auto* serverLayout=new QVBoxLayout(serverPage);serverLayout->setSpacing(12);
-    auto* statusBox=new QGroupBox("服务器状态");auto* statusLayout=new QHBoxLayout(statusBox);
-    processStatus=new QLabel("未登录");cpuStatus=new QLabel("—");memoryStatus=new QLabel("—");
-    auto addMetric=[&](const QString& label,QLabel* value){auto* column=new QVBoxLayout;auto* caption=new QLabel(label);caption->setObjectName("hint");value->setObjectName("metric");column->addWidget(caption);column->addWidget(value);statusLayout->addLayout(column,1);};
-    addMetric("Relay 进程",processStatus);addMetric("CPU 当前",cpuStatus);addMetric("内存当前",memoryStatus);serverLayout->addWidget(statusBox);
-    auto* chartBox=new QGroupBox("服务器负载 · 最近 5 分钟");auto* chartLayout=new QVBoxLayout(chartBox);chart=new LoadChart;chartLayout->addWidget(chart);serverLayout->addWidget(chartBox);
-
-    protectedControls=new QWidget;protectedControls->setEnabled(false);auto* controlsLayout=new QVBoxLayout(protectedControls);controlsLayout->setContentsMargins(0,0,0,0);
+    operationControls=new QWidget;operationControls->setEnabled(false);
+    auto* operationOuterLayout=new QVBoxLayout(operationControls);operationOuterLayout->setContentsMargins(0,0,0,0);
     auto* operations=new QGroupBox("Relay 运维");auto* operationLayout=new QHBoxLayout(operations);
     for(const auto& item:{qMakePair(QString("启动"),QString("start")),qMakePair(QString("停止"),QString("stop")),qMakePair(QString("重启"),QString("restart"))}) {
         auto* button=new QPushButton(item.first);button->setIcon(QIcon(QString(":/icons/%1.png").arg(item.second)));button->setIconSize(QSize(20,20));operationLayout->addWidget(button);connect(button,&QPushButton::clicked,this,[this,action=item.second]{command(action);});
     }
-    auto* reloadButton=new QPushButton("重新读取配置");reloadButton->setIcon(QIcon(":/icons/reload.png"));reloadButton->setIconSize(QSize(20,20));operationLayout->addWidget(reloadButton);connect(reloadButton,&QPushButton::clicked,this,&MainWindow::loadConfig);controlsLayout->addWidget(operations);
+    auto* reloadButton=new QPushButton("重新读取配置");reloadButton->setIcon(QIcon(":/icons/reload.png"));reloadButton->setIconSize(QSize(20,20));operationLayout->addWidget(reloadButton);connect(reloadButton,&QPushButton::clicked,this,&MainWindow::loadConfig);operationOuterLayout->addWidget(operations);
+    serverLayout->addWidget(operationControls);
+    auto* chartBox=new QGroupBox("服务器负载 · 最近 5 分钟");auto* chartLayout=new QVBoxLayout(chartBox);chart=new LoadChart;chartLayout->addWidget(chart);serverLayout->addWidget(chartBox);
 
+    protectedControls=new QWidget;protectedControls->setEnabled(false);auto* controlsLayout=new QVBoxLayout(protectedControls);controlsLayout->setContentsMargins(0,0,0,0);
     auto* configBox=new QGroupBox("Relay 配置 · 按项目编辑");auto* configLayout=new QVBoxLayout(configBox);
     auto* scroll=new QScrollArea;scroll->setWidgetResizable(true);auto* formHost=new QWidget;auto* formLayout=new QVBoxLayout(formHost);
-    auto spin=[&](QFormLayout* form,const QString& label,int min,int max){auto* field=new QSpinBox;field->setRange(min,max);field->setKeyboardTracking(false);form->addRow(label,field);return field;};
+    auto spin=[&](QFormLayout* form,const QString& label,int min,int max){auto* field=new NoWheelSpinBox;field->setRange(min,max);field->setKeyboardTracking(false);form->addRow(label,field);return field;};
 
     auto* portsBox=new QGroupBox("端口");auto* portsForm=new QFormLayout(portsBox);
     controlPort=spin(portsForm,"控制端口",1,65535);roomPortMin=spin(portsForm,"房间端口起始",1,65535);roomPortMax=spin(portsForm,"房间端口结束",1,65535);formLayout->addWidget(portsBox);
@@ -97,17 +103,21 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     maxRooms=spin(limitsForm,"最大房间数",1,65535);maxPlayersPerRoom=spin(limitsForm,"每房间最大玩家数",1,256);maxPendingPerRoom=spin(limitsForm,"每房间等待连接上限",1,65535);
     pendingTimeoutSec=spin(limitsForm,"等待配对超时（秒）",1,86400);reconnectGraceSec=spin(limitsForm,"服主重连宽限（秒）",1,86400);heartbeatTimeoutSec=spin(limitsForm,"心跳超时（秒）",1,86400);
     sessionIdleTimeoutSec=spin(limitsForm,"游戏连接空闲超时（秒）",30,3600);maxConnections=spin(limitsForm,"全局最大连接数",1,65535);authRatePerMin=spin(limitsForm,"每 IP 每分钟登录次数",1,65535);formLayout->addWidget(limitsBox);
-    auto* logBox=new QGroupBox("日志");auto* logForm=new QFormLayout(logBox);logFile=new QLineEdit;logForm->addRow("日志文件路径（留空关闭）",logFile);formLayout->addWidget(logBox);formLayout->addStretch();
-    scroll->setWidget(formHost);configLayout->addWidget(scroll,1);
-    auto* saveRow=new QHBoxLayout;saveRow->addStretch();auto* saveButton=new QPushButton("校验并保存配置");saveButton->setIcon(QIcon(":/icons/save.png"));saveButton->setIconSize(QSize(20,20));saveRow->addWidget(saveButton);configLayout->addLayout(saveRow);connect(saveButton,&QPushButton::clicked,this,&MainWindow::saveConfig);controlsLayout->addWidget(configBox,1);
+    auto* logBox=new QGroupBox("日志");auto* logForm=new QFormLayout(logBox);logFile=new QLineEdit;logForm->addRow("日志文件路径（留空关闭）",logFile);formLayout->addWidget(logBox);
+    auto* saveRow=new QHBoxLayout;saveRow->addStretch();auto* saveButton=new QPushButton("校验并保存配置");saveButton->setIcon(QIcon(":/icons/save.png"));saveButton->setIconSize(QSize(20,20));saveRow->addWidget(saveButton);formLayout->addLayout(saveRow);connect(saveButton,&QPushButton::clicked,this,&MainWindow::saveConfig);
+    scroll->setWidget(formHost);configLayout->addWidget(scroll,1);controlsLayout->addWidget(configBox,1);
     serverLayout->addWidget(protectedControls,2);pages->addTab(serverPage,"服务器运维");
 
     auto* loginPage=new QWidget;auto* loginLayout=new QVBoxLayout(loginPage);loginLayout->addStretch();
     auto* loginBox=new QGroupBox("运维登录");auto* loginForm=new QFormLayout(loginBox);
     url=new QLineEdit("127.0.0.1:29564");url->setPlaceholderText("服务器主机名或 IP:端口");
     hostPassword=new QLineEdit;hostPassword->setEchoMode(QLineEdit::Password);hostPassword->setPlaceholderText("转发后端配置中的 host_password");
+    auto* networkNotice=new QLabel("虚拟网卡模式转发可能导致连接失败");
+    networkNotice->setObjectName("hint");
     rememberCredentials=new QCheckBox("记住服务器地址和服主密码（仅本机）");
-    loginForm->addRow("服务器地址",url);loginForm->addRow("服主密码",hostPassword);loginForm->addRow("",rememberCredentials);
+    loginForm->addRow("服务器地址",url);loginForm->addRow("服主密码",hostPassword);
+    loginForm->addRow("",networkNotice);
+    loginForm->addRow("",rememberCredentials);
     loginButton=new QPushButton("登录并打开运维面板");loginButton->setIcon(QIcon(":/icons/login.png"));loginButton->setIconSize(QSize(20,20));loginForm->addRow("",loginButton);loginLayout->addWidget(loginBox);loginLayout->addStretch();pages->addTab(loginPage,"登录");
     {
         auto settings=appSettings();
@@ -188,7 +198,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
         }
     });
     connect(&socket,&QSslSocket::readyRead,this,&MainWindow::readResponses);
-    connect(&socket,&QSslSocket::disconnected,this,[this]{setAuthenticated(false);processStatus->setText("未连接");});
+    connect(&socket,&QSslSocket::disconnected,this,[this]{setAuthenticated(false);});
     connect(&socket,&QSslSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){
         connectTimeoutTimer.stop();
         if(pending.isEmpty())return;
@@ -216,6 +226,7 @@ void MainWindow::request(const QString& type,const QByteArray& body,std::functio
         sslFailureDetails.clear();tlsEstablished=false;
         QUrl endpoint("tcp://"+url->text().trimmed());
         if(endpoint.host().isEmpty()||endpoint.port()<1||endpoint.port()>65535){failPending("请输入有效的主机名:端口，例如 ops.example.com:29564");return;}
+        socket.setProxy(QNetworkProxy::NoProxy);
         socket.setPeerVerifyMode(QSslSocket::VerifyPeer);socket.connectToHostEncrypted(endpoint.host(),static_cast<quint16>(endpoint.port()));
         connectTimeoutTimer.start();
     }
@@ -247,7 +258,7 @@ void MainWindow::failPending(const QString& error) {
 }
 
 void MainWindow::setAuthenticated(bool value) {
-    authenticated=value;protectedControls->setEnabled(value);loginButton->setEnabled(!value);
+    authenticated=value;operationControls->setEnabled(value);protectedControls->setEnabled(value);loginButton->setEnabled(!value);
     if(value){pages->setCurrentIndex(0);}else if(pages->currentIndex()==0&&pages->count()>1){pages->setCurrentIndex(1);refreshTimer.stop();}
 }
 
@@ -288,12 +299,10 @@ void MainWindow::command(const QString& action) {
 
 void MainWindow::refresh() {
     if(!authenticated)return;
-    request("status",{},[this](int code,const QByteArray& bytes){if(code!=200)return;auto j=QJsonDocument::fromJson(bytes).object();processStatus->setText(j.value("running").toBool()?QString("运行中 · PID %1").arg(j.value("pid").toInt()):"已停止");});
     request("metrics",{},[this](int code,const QByteArray& bytes){
         if(code!=200)return;auto j=QJsonDocument::fromJson(bytes).object();
-        if(!j.value("available").toBool()){cpuStatus->setText("不可用");memoryStatus->setText("不可用");chart->append(-1,-1);return;}
+        if(!j.value("available").toBool()){chart->append(-1,-1);return;}
         const double cpuValue=j.value("cpu_percent").toDouble();const double total=j.value("memory_total_bytes").toDouble(),used=j.value("memory_used_bytes").toDouble();
-        cpuStatus->setText(QString::number(cpuValue,'f',1)+"%");memoryStatus->setText(total>0?QString("%1 / %2 GB").arg(used/1073741824.0,0,'f',1).arg(total/1073741824.0,0,'f',1):"不可用");
         chart->append(cpuValue,total>0?used*100.0/total:-1);
     });
 }

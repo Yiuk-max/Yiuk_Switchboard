@@ -24,4 +24,8 @@ mod/out/
 # Qt client local build output
 /ops/client/build/
 /ops/client/build-*/
+/ops/client/package/
+/ops/client/package-staging/
+/ops/client/yiuk-ops-windows-x64.zip
+/ops/client/yiuk-ops-windows-x64.staging.zip
 /ops/server/ops-agent-linux-amd64

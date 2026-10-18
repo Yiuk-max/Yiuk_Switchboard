@@ -8,6 +8,11 @@ set(CMAKE_AUTORCC ON)
 qt_add_executable(yiuk-ops WIN32 MACOSX_BUNDLE
     src/main.cpp src/mainwindow.cpp src/mainwindow.h src/loadchart.cpp src/loadchart.h
     resources.qrc)
+if(WIN32)
+    configure_file(resources/icons/steve.ico "${CMAKE_CURRENT_BINARY_DIR}/steve.ico" COPYONLY)
+    configure_file(resources/yiuk-ops.rc "${CMAKE_CURRENT_BINARY_DIR}/yiuk-ops.rc" COPYONLY)
+    target_sources(yiuk-ops PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/yiuk-ops.rc")
+endif()
 target_link_libraries(yiuk-ops PRIVATE Qt6::Widgets Qt6::Network)
 if(WIN32)
     target_link_libraries(yiuk-ops PRIVATE Crypt32)
