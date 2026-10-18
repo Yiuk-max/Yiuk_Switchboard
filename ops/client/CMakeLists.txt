@@ -9,3 +9,6 @@ qt_add_executable(yiuk-ops WIN32 MACOSX_BUNDLE
     src/main.cpp src/mainwindow.cpp src/mainwindow.h src/loadchart.cpp src/loadchart.h
     resources.qrc)
 target_link_libraries(yiuk-ops PRIVATE Qt6::Widgets Qt6::Network)
+if(WIN32)
+    target_link_libraries(yiuk-ops PRIVATE Crypt32)
+endif()

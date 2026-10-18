@@ -1,6 +1,7 @@
 #include "mainwindow.h"
 #include "loadchart.h"
 #include <QAbstractSocket>
+#include <QCheckBox>
 #include <QCryptographicHash>
 #include <QFormLayout>
 #include <QGroupBox>
@@ -23,6 +24,44 @@
 #include <QVBoxLayout>
 #include <QUrl>
 #include <QtEndian>
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <wincrypt.h>
+#endif
+
+namespace {
+QSettings appSettings() { return QSettings("YiukSwitchboard","YiukOps"); }
+
+bool protectPassword(const QString& password,QByteArray& protectedValue) {
+#ifdef Q_OS_WIN
+    const QByteArray plain=password.toUtf8();
+    DATA_BLOB input{static_cast<DWORD>(plain.size()),reinterpret_cast<BYTE*>(const_cast<char*>(plain.constData()))};
+    DATA_BLOB output{};
+    if(!CryptProtectData(&input,L"Yiuk Ops credentials",nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&output))return false;
+    protectedValue=QByteArray(reinterpret_cast<const char*>(output.pbData),static_cast<qsizetype>(output.cbData));
+    LocalFree(output.pbData);
+    return true;
+#else
+    Q_UNUSED(password);Q_UNUSED(protectedValue);
+    return false;
+#endif
+}
+
+bool unprotectPassword(const QByteArray& protectedValue,QString& password) {
+#ifdef Q_OS_WIN
+    if(protectedValue.isEmpty())return false;
+    DATA_BLOB input{static_cast<DWORD>(protectedValue.size()),reinterpret_cast<BYTE*>(const_cast<char*>(protectedValue.constData()))};
+    DATA_BLOB output{};
+    if(!CryptUnprotectData(&input,nullptr,nullptr,nullptr,nullptr,CRYPTPROTECT_UI_FORBIDDEN,&output))return false;
+    password=QString::fromUtf8(reinterpret_cast<const char*>(output.pbData),static_cast<qsizetype>(output.cbData));
+    LocalFree(output.pbData);
+    return true;
+#else
+    Q_UNUSED(protectedValue);Q_UNUSED(password);
+    return false;
+#endif
+}
+}
 
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     setWindowTitle("Yiuk Switchboard 运维中心"); resize(980, 820);
@@ -67,13 +106,32 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     auto* loginBox=new QGroupBox("运维登录");auto* loginForm=new QFormLayout(loginBox);
     url=new QLineEdit("127.0.0.1:29564");url->setPlaceholderText("服务器主机名或 IP:端口");
     hostPassword=new QLineEdit;hostPassword->setEchoMode(QLineEdit::Password);hostPassword->setPlaceholderText("转发后端配置中的 host_password");
-    loginForm->addRow("服务器地址",url);loginForm->addRow("服主密码",hostPassword);
+    rememberCredentials=new QCheckBox("记住服务器地址和服主密码（仅本机）");
+    loginForm->addRow("服务器地址",url);loginForm->addRow("服主密码",hostPassword);loginForm->addRow("",rememberCredentials);
     loginButton=new QPushButton("登录并打开运维面板");loginButton->setIcon(QIcon(":/icons/login.png"));loginButton->setIconSize(QSize(20,20));loginForm->addRow("",loginButton);loginLayout->addWidget(loginBox);loginLayout->addStretch();pages->addTab(loginPage,"登录");
+    {
+        auto settings=appSettings();
+        const bool remembered=settings.value("credentials/remember",false).toBool();
+        rememberCredentials->setChecked(remembered);
+        if(remembered) {
+            url->setText(settings.value("credentials/serverAddress",url->text()).toString());
+            QString savedPassword;
+            if(unprotectPassword(settings.value("credentials/passwordProtected").toByteArray(),savedPassword))hostPassword->setText(savedPassword);
+            else settings.remove("credentials/passwordProtected");
+        }
+    }
     connect(loginButton,&QPushButton::clicked,this,&MainWindow::login);
     setCentralWidget(root);statusBar()->showMessage("先到“登录”页输入 relay 的服主密码；连接使用 TLS 加密 TCP");
 
     connect(&refreshTimer,&QTimer::timeout,this,&MainWindow::refresh);
-    connect(&socket,&QSslSocket::encrypted,this,[this]{sslFailureDetails.clear();flushRequests();statusBar()->showMessage("TLS 加密通道已建立",4000);});
+    connectTimeoutTimer.setSingleShot(true);
+    connectTimeoutTimer.setInterval(30000);
+    connect(&connectTimeoutTimer,&QTimer::timeout,this,[this]{
+        if(socket.isEncrypted()||socket.state()==QAbstractSocket::UnconnectedState)return;
+        failPending("连接或 TLS 握手超过 30 秒仍未完成");
+        socket.abort();
+    });
+    connect(&socket,&QSslSocket::encrypted,this,[this]{connectTimeoutTimer.stop();tlsEstablished=true;sslFailureDetails.clear();flushRequests();statusBar()->showMessage("TLS 加密通道已建立",4000);});
     connect(&socket,&QSslSocket::sslErrors,this,[this](const QList<QSslError>& errors){
         QStringList details;
         for(const auto& error:errors)details.push_back(error.errorString());
@@ -81,21 +139,24 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
         const auto certificate=socket.peerCertificate();
         if(certificate.isNull())return;
-        bool onlyTrustChainErrors=true;
+        bool safeToPin=true;
         for(const auto& error:errors) {
             switch(error.error()) {
-            case QSslError::SelfSignedCertificate:
-            case QSslError::SelfSignedCertificateInChain:
-            case QSslError::UnableToGetLocalIssuerCertificate:
-            case QSslError::UnableToVerifyFirstCertificate:
-            case QSslError::CertificateUntrusted:
+            case QSslError::CertificateNotYetValid:
+            case QSslError::CertificateExpired:
+            case QSslError::InvalidNotBeforeField:
+            case QSslError::InvalidNotAfterField:
+            case QSslError::CertificateRevoked:
+            case QSslError::CertificateSignatureFailed:
+            case QSslError::UnableToDecryptCertificateSignature:
+            case QSslError::InvalidCaCertificate:
+            case QSslError::CertificateBlacklisted:
+                safeToPin=false;
                 break;
-            default:
-                onlyTrustChainErrors=false;
-                break;
+            default: break;
             }
         }
-        if(!onlyTrustChainErrors)return;
+        if(!safeToPin)return;
 
         const QByteArray fingerprint=certificate.digest(QCryptographicHash::Sha256);
         const QString fingerprintText=QString::fromLatin1(fingerprint.toHex(':')).toUpper();
@@ -114,8 +175,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
 
         const QString subject=certificate.subjectInfo(QSslCertificate::CommonName).join(", ");
         const auto answer=QMessageBox::question(this,"首次信任服务器证书",
-            QString("服务器使用自签名 TLS 证书。\n名称：%1\nSHA-256：\n%2\n\n只有在你确认这是自己的服务器时才继续。是否信任这张证书？")
-                .arg(subject.isEmpty()?"（无）":subject,fingerprintText),
+            QString("服务器证书未通过系统 CA 或地址名称校验。\n校验信息：%3\n证书名称：%1\nSHA-256：\n%2\n\n请先核对指纹；只有确认这是自己的服务器时才继续。是否固定并信任这张证书？")
+                .arg(subject.isEmpty()?"（无）":subject,fingerprintText,sslFailureDetails),
             QMessageBox::Yes|QMessageBox::No,QMessageBox::No);
         if(answer==QMessageBox::Yes) {
             settings.setValue(pinKey,fingerprint);
@@ -129,8 +190,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent) {
     connect(&socket,&QSslSocket::readyRead,this,&MainWindow::readResponses);
     connect(&socket,&QSslSocket::disconnected,this,[this]{setAuthenticated(false);processStatus->setText("未连接");});
     connect(&socket,&QSslSocket::errorOccurred,this,[this](QAbstractSocket::SocketError){
+        connectTimeoutTimer.stop();
         if(pending.isEmpty())return;
         QString error=socket.errorString();
+        error+=tlsEstablished?"\nTLS 已建立，对端随后关闭连接":"\n连接在 TLS 握手完成前关闭";
         if(!sslFailureDetails.isEmpty())error+="\nTLS 证书校验："+sslFailureDetails;
         failPending(error);
     });
@@ -150,10 +213,11 @@ void MainWindow::request(const QString& type,const QByteArray& body,std::functio
     QByteArray frame(4,Qt::Uninitialized);qToBigEndian<quint32>(static_cast<quint32>(payload.size()),reinterpret_cast<uchar*>(frame.data()));frame+=payload;
     pending.insert(id,std::move(done));outgoing.enqueue(frame);
     if(socket.state()==QAbstractSocket::UnconnectedState) {
-        sslFailureDetails.clear();
+        sslFailureDetails.clear();tlsEstablished=false;
         QUrl endpoint("tcp://"+url->text().trimmed());
         if(endpoint.host().isEmpty()||endpoint.port()<1||endpoint.port()>65535){failPending("请输入有效的主机名:端口，例如 ops.example.com:29564");return;}
         socket.setPeerVerifyMode(QSslSocket::VerifyPeer);socket.connectToHostEncrypted(endpoint.host(),static_cast<quint16>(endpoint.port()));
+        connectTimeoutTimer.start();
     }
     if(socket.isEncrypted())flushRequests();
 }
@@ -189,6 +253,22 @@ void MainWindow::setAuthenticated(bool value) {
 
 void MainWindow::login() {
     if(hostPassword->text().isEmpty()){showError("请输入转发后端的服主密码");return;}
+    {
+        auto settings=appSettings();
+        settings.setValue("credentials/remember",rememberCredentials->isChecked());
+        if(rememberCredentials->isChecked()) {
+            settings.setValue("credentials/serverAddress",url->text().trimmed());
+            QByteArray protectedPassword;
+            if(protectPassword(hostPassword->text(),protectedPassword))settings.setValue("credentials/passwordProtected",protectedPassword);
+            else {
+                settings.remove("credentials/passwordProtected");
+                statusBar()->showMessage("无法安全保存密码；本次仍会尝试登录",7000);
+            }
+        } else {
+            settings.remove("credentials/serverAddress");
+            settings.remove("credentials/passwordProtected");
+        }
+    }
     loginButton->setEnabled(false);statusBar()->showMessage("正在验证服主密码…");
     QJsonObject credentials;credentials.insert("password",hostPassword->text());
     request("authenticate",QJsonDocument(credentials).toJson(QJsonDocument::Compact),[this](int code,const QByteArray& response){

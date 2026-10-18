@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -115,9 +116,11 @@ func (c relayConfigDTO) config() relayconfig.Config {
 
 func (a *api) serveConn(conn net.Conn) {
 	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+	remote := conn.RemoteAddr().String()
+	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
 	if tlsConn, ok := conn.(*tls.Conn); ok {
 		if err := tlsConn.Handshake(); err != nil {
+			log.Printf("TLS handshake failed from %s: %v", remote, err)
 			return
 		}
 	}
@@ -127,10 +130,17 @@ func (a *api) serveConn(conn net.Conn) {
 	for {
 		request, err := readRequest(r)
 		if err != nil {
+			if err != io.EOF && err != net.ErrClosed {
+				log.Printf("read request from %s failed: %v", remote, err)
+			}
 			return
 		}
 		response := a.dispatch(request, &authenticated, conn.RemoteAddr())
+		if !response.OK {
+			log.Printf("request from %s rejected (type=%s): %s", remote, request.Type, response.Error)
+		}
 		if err = writeResponse(conn, response); err != nil {
+			log.Printf("write response to %s failed (type=%s): %v", remote, request.Type, err)
 			return
 		}
 	}

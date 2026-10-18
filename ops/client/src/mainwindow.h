@@ -8,18 +8,18 @@
 #include <QJsonObject>
 #include <functional>
 
-class QLineEdit; class QLabel; class QPushButton; class QSpinBox; class QWidget; class QTabWidget; class LoadChart;
+class QLineEdit; class QLabel; class QPushButton; class QSpinBox; class QWidget; class QTabWidget; class LoadChart; class QCheckBox;
 class MainWindow : public QMainWindow {
     Q_OBJECT
 public: explicit MainWindow(QWidget* parent = nullptr);
 private:
-    QSslSocket socket; QTimer refreshTimer; bool authenticated = false; QByteArray incoming; QString sslFailureDetails;
+    QSslSocket socket; QTimer refreshTimer; QTimer connectTimeoutTimer; bool authenticated = false; bool tlsEstablished = false; QByteArray incoming; QString sslFailureDetails;
     quint32 nextRequestId = 1; QHash<quint32,std::function<void(int,const QByteArray&)>> pending;
     QQueue<QByteArray> outgoing;
     QLineEdit *url, *hostPassword, *hostPasswordConfig, *playerPasswordConfig, *logFile;
     QSpinBox *controlPort, *roomPortMin, *roomPortMax, *maxRooms, *maxPlayersPerRoom, *maxPendingPerRoom;
     QSpinBox *pendingTimeoutSec, *reconnectGraceSec, *heartbeatTimeoutSec, *sessionIdleTimeoutSec, *maxConnections, *authRatePerMin;
-    QLabel *processStatus, *cpuStatus, *memoryStatus; QPushButton* loginButton;
+    QLabel *processStatus, *cpuStatus, *memoryStatus; QPushButton* loginButton; QCheckBox* rememberCredentials;
     QTabWidget* pages; QWidget* protectedControls; LoadChart* chart;
     void login(); void request(const QString& type, const QByteArray& body,
                                std::function<void(int,const QByteArray&)> done);
