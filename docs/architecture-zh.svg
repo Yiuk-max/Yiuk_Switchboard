@@ -1,0 +1,151 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="860" viewBox="0 0 1600 860" role="img" aria-labelledby="title desc">
+  <title id="title">Yiuk Switchboard 联机与运维拓扑</title>
+  <desc id="desc">玩家电脑通过公网 Go relay 接入房主电脑上的 Minecraft 集成服务器。Qt 运维面板位于房主电脑下方的独立区域，通过 TLS 管理公网主机上的运维代理。</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#2874A6"/></marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#7956A5"/></marker>
+    <marker id="arrow-purple-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#7956A5"/></marker>
+    <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#42804A"/></marker>
+    <marker id="arrow-green-start" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10Z" fill="#42804A"/></marker>
+    <filter id="shadow" x="-15%" y="-15%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#24364A" flood-opacity=".13"/></filter>
+    <style>
+      text{font-family:"Microsoft YaHei","Noto Sans CJK SC","Segoe UI",sans-serif;fill:#203247}
+      .title{font-size:28px;font-weight:700}.subtitle{font-size:14px;fill:#62758A}
+      .group-title{font-size:17px;font-weight:700}.node-title{font-size:16px;font-weight:700}
+      .body{font-size:13px}.small{font-size:12px;fill:#52677D}.tiny{font-size:11px;fill:#52677D}
+      .panel{filter:url(#shadow)}.line-label{font-size:11px;font-weight:600}
+    </style>
+  </defs>
+  <rect width="1600" height="860" rx="18" fill="#F4F7FB"/>
+  <text x="40" y="48" class="title">Yiuk Switchboard｜玩家连接、世界运行与运维管理</text>
+  <text x="40" y="77" class="subtitle">虚线：控制 / 管理通道　　实线：Minecraft 游戏 TCP 数据　　箭头表示连接关系，游戏数据双向传输</text>
+
+  <!-- Main device regions -->
+  <rect x="32" y="110" width="330" height="650" rx="14" fill="#EEF5FC" stroke="#6590B3" stroke-width="2"/>
+  <rect x="400" y="110" width="540" height="650" rx="14" fill="#FFFAF0" stroke="#C39145" stroke-width="2"/>
+  <rect x="970" y="110" width="595" height="380" rx="14" fill="#F2F8F0" stroke="#76A078" stroke-width="2"/>
+  <rect x="970" y="515" width="595" height="245" rx="14" fill="#F7F2FC" stroke="#9277B4" stroke-width="2"/>
+  <text x="52" y="143" class="group-title">玩家电脑（每位玩家各一台）</text>
+  <text x="422" y="143" class="group-title">公网服务器</text>
+  <text x="992" y="143" class="group-title">房主电脑｜单人世界实际运行在这里</text>
+  <text x="992" y="548" class="group-title">运维人员电脑｜独立远程终端</text>
+
+  <!-- Player clients -->
+  <g class="panel">
+    <rect x="62" y="195" width="260" height="150" rx="10" fill="#FFFFFF" stroke="#4780AA" stroke-width="2"/>
+    <path d="M72 195H312Q322 195 322 205V238H62V205Q62 195 72 195Z" fill="#DCEBFA"/>
+    <text x="82" y="223" class="node-title">玩家 A</text>
+    <text x="82" y="270" class="body">Minecraft 客户端</text>
+    <text x="82" y="294" class="body">玩家模式模组</text>
+    <text x="82" y="325" class="tiny">登录、浏览房间并加入游戏</text>
+  </g>
+  <g class="panel">
+    <rect x="62" y="455" width="260" height="150" rx="10" fill="#FFFFFF" stroke="#4780AA" stroke-width="2"/>
+    <path d="M72 455H312Q322 455 322 465V498H62V465Q62 455 72 455Z" fill="#DCEBFA"/>
+    <text x="82" y="483" class="node-title">玩家 B</text>
+    <text x="82" y="530" class="body">Minecraft 客户端</text>
+    <text x="82" y="554" class="body">玩家模式模组</text>
+    <text x="82" y="585" class="tiny">与玩家 A 使用相同连接流程</text>
+  </g>
+  <text x="62" y="660" class="small">每位玩家各自建立两条连接：</text>
+  <text x="62" y="684" class="small">控制连接 + 房间游戏连接</text>
+  <text x="62" y="718" class="tiny">服主和玩家使用不同的密码与权限</text>
+
+  <!-- Operations agent and relay -->
+  <g class="panel">
+    <rect x="455" y="165" width="430" height="110" rx="10" fill="#F3EAFB" stroke="#7956A5" stroke-width="2"/>
+    <path d="M465 165H875Q885 165 885 175V207H455V175Q455 165 465 165Z" fill="#E7D8F3"/>
+    <text x="480" y="193" class="node-title">Go 运维代理</text>
+    <text x="480" y="235" class="body">TLS 1.2+ 管理接口 · 读取配置 · 主机指标</text>
+    <text x="480" y="257" class="tiny">作为独立进程运行在公网服务器</text>
+  </g>
+  <g class="panel">
+    <rect x="455" y="370" width="430" height="360" rx="10" fill="#FFFFFF" stroke="#C17E20" stroke-width="2.5"/>
+    <path d="M465 370H875Q885 370 885 380V412H455V380Q455 370 465 370Z" fill="#F9E8C8"/>
+    <text x="480" y="398" class="node-title">Go relay 中转服务</text>
+    <text x="480" y="438" class="tiny">多房间并发登记（示意）· 各自记录游戏版本 / 模组清单</text>
+    <g>
+      <rect x="475" y="452" width="188" height="84" rx="8" fill="#F5F9FE" stroke="#8BAFCB"/>
+      <text x="489" y="475" class="node-title" font-size="14">房间 01</text>
+      <text x="489" y="498" class="small">对应世界 / 存档 A</text>
+      <text x="489" y="520" class="tiny">游戏版本 A · 模组集 A</text>
+      <rect x="675" y="452" width="190" height="84" rx="8" fill="#F7F3FC" stroke="#B29BCB"/>
+      <text x="689" y="475" class="node-title" font-size="14">房间 02</text>
+      <text x="689" y="498" class="small">对应世界 / 存档 B</text>
+      <text x="689" y="520" class="tiny">游戏版本 B · 模组集 B</text>
+      <rect x="475" y="548" width="188" height="84" rx="8" fill="#F5F9FE" stroke="#8BAFCB"/>
+      <text x="489" y="571" class="node-title" font-size="14">房间 03</text>
+      <text x="489" y="594" class="small">对应世界 / 存档 C</text>
+      <text x="489" y="616" class="tiny">游戏版本 C · 模组集 C</text>
+      <rect x="675" y="548" width="190" height="84" rx="8" fill="#F7F3FC" stroke="#B29BCB"/>
+      <text x="689" y="571" class="node-title" font-size="14">房间 04</text>
+      <text x="689" y="594" class="small">对应世界 / 存档 D</text>
+      <text x="689" y="616" class="tiny">游戏版本 D · 模组集 D</text>
+    </g>
+    <path d="M480 646H860" stroke="#E4D9C9"/>
+    <text x="480" y="670" class="tiny">relay 负责认证、端口分配、配对和 TCP 转发；不运行 Minecraft。</text>
+    <text x="480" y="695" class="tiny">世界 / 存档由各房主电脑运行；relay 重启后需重新开房。</text>
+  </g>
+
+  <!-- Host computer -->
+  <g class="panel">
+    <rect x="1000" y="220" width="245" height="150" rx="10" fill="#FFFFFF" stroke="#4780AA" stroke-width="2"/>
+    <path d="M1010 220H1235Q1245 220 1245 230V263H1000V230Q1000 220 1010 220Z" fill="#DCEBFA"/>
+    <text x="1020" y="248" class="node-title">Minecraft 客户端模组</text>
+    <text x="1020" y="295" class="body">房主模式</text>
+    <text x="1020" y="319" class="small">创建 / 恢复房间</text>
+    <text x="1020" y="344" class="small">接收玩家数据并转发到 LAN</text>
+  </g>
+  <g class="panel">
+    <rect x="1290" y="220" width="240" height="150" rx="10" fill="#FFFFFF" stroke="#518653" stroke-width="2"/>
+    <path d="M1300 220H1520Q1530 220 1530 230V263H1290V230Q1290 220 1300 220Z" fill="#DDEEDD"/>
+    <text x="1310" y="248" class="node-title">Minecraft 集成服务器</text>
+    <text x="1310" y="295" class="body">单人世界与游戏逻辑</text>
+    <text x="1310" y="319" class="small">玩家 · 实体 · 区块 · tick</text>
+    <text x="1310" y="344" class="small">继续使用房主原有存档</text>
+  </g>
+  <text x="1000" y="425" class="small">世界进程、存档和权威模拟都留在房主电脑。</text>
+  <text x="1000" y="451" class="tiny">房主模组通过本机 LAN TCP 接入集成服务器。</text>
+
+  <!-- Remote operations panel, deliberately below the host computer -->
+  <g class="panel">
+    <rect x="1000" y="575" width="535" height="125" rx="10" fill="#FFFFFF" stroke="#7956A5" stroke-width="2"/>
+    <path d="M1010 575H1525Q1535 575 1535 585V618H1000V585Q1000 575 1010 575Z" fill="#E7D8F3"/>
+    <text x="1020" y="603" class="node-title">Qt 运维面板</text>
+    <text x="1020" y="647" class="body">TLS 管理连接到公网服务器上的 Go 运维代理</text>
+    <text x="1020" y="674" class="small">查看进程与 CPU/内存 · 读取/保存配置 · 启停或重启 relay</text>
+  </g>
+  <text x="1000" y="731" class="tiny">独立远程终端，不是 Minecraft 模组界面，也不承载游戏流量。</text>
+
+  <!-- Player control channels (dashed) and game streams (solid) -->
+  <path d="M322 267H380V410H455" fill="none" stroke="#7956A5" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#arrow-purple)"/>
+  <path d="M322 310H415V385H455" fill="none" stroke="#2874A6" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <path d="M322 506H390V450H455" fill="none" stroke="#7956A5" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#arrow-purple)"/>
+  <path d="M322 550H430V490H455" fill="none" stroke="#2874A6" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+  <rect x="326" y="239" width="74" height="20" rx="5" fill="#F4F7FB"/><text x="332" y="253" class="line-label" fill="#68478F">控制 TCP</text>
+  <rect x="326" y="317" width="88" height="20" rx="5" fill="#F4F7FB"/><text x="332" y="331" class="line-label" fill="#22668F">游戏 TCP</text>
+  <rect x="326" y="478" width="74" height="20" rx="5" fill="#F4F7FB"/><text x="332" y="492" class="line-label" fill="#68478F">控制 TCP</text>
+  <rect x="326" y="558" width="88" height="20" rx="5" fill="#F4F7FB"/><text x="332" y="572" class="line-label" fill="#22668F">游戏 TCP</text>
+
+  <!-- Host control and reverse data connections -->
+  <path d="M885 405H950V270H1000" fill="none" stroke="#7956A5" stroke-width="2" stroke-dasharray="7 6" marker-end="url(#arrow-purple)"/>
+  <path d="M885 490H960V335H1000" fill="none" stroke="#2874A6" stroke-width="2.5" marker-start="url(#arrow-blue)" marker-end="url(#arrow-blue)"/>
+  <rect x="888" y="380" width="66" height="20" rx="5" fill="#F4F7FB"/><text x="895" y="394" class="line-label" fill="#68478F">控制</text>
+  <rect x="888" y="500" width="72" height="20" rx="5" fill="#F4F7FB"/><text x="895" y="514" class="line-label" fill="#22668F">数据通道</text>
+
+  <!-- Local game connection -->
+  <path d="M1245 295H1290" fill="none" stroke="#42804A" stroke-width="2.5" marker-start="url(#arrow-green-start)" marker-end="url(#arrow-green)"/>
+  <rect x="1248" y="267" width="40" height="20" rx="5" fill="#F2F8F0"/><text x="1252" y="281" class="line-label" fill="#356B3C">LAN</text>
+
+  <!-- Local process control and remote TLS link -->
+  <path d="M670 275V370" fill="none" stroke="#7956A5" stroke-width="2" stroke-dasharray="5 5" marker-end="url(#arrow-purple)"/>
+  <rect x="682" y="312" width="138" height="28" rx="6" fill="#FFFAF0" stroke="#E5D8C5"/><text x="692" y="331" class="tiny">本机子进程：启停 / 重启</text>
+  <path d="M1000 638H955V220H885" fill="none" stroke="#7956A5" stroke-width="2.5" stroke-dasharray="8 6" marker-start="url(#arrow-purple-start)" marker-end="url(#arrow-purple)"/>
+
+  <!-- Legend -->
+  <g transform="translate(1120 68)">
+    <path d="M0 0H55" stroke="#7956A5" stroke-width="2" stroke-dasharray="7 6"/><text x="64" y="5" class="small">控制 / 管理</text>
+    <path d="M190 0H245" stroke="#2874A6" stroke-width="2.5"/><text x="254" y="5" class="small">游戏数据</text>
+  </g>
+  <text x="400" y="808" class="small">同机优化：如果 Go relay 与房主电脑在同一台机器，relay 可尝试直连本机 LAN 端口，省去房主模组的数据桥接。</text>
+</svg>

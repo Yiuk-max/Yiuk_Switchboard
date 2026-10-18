@@ -17,6 +17,7 @@ import java.net.Socket;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -301,20 +302,35 @@ public final class HostRoom implements AutoCloseable {
 
     private static void copyBoth(Socket a, Socket b) throws IOException {
         var pool = Executors.newVirtualThreadPerTaskExecutor();
-        Exception failure = null;
+        var completed = new ExecutorCompletionService<Void>(pool);
+        completed.submit(() -> { copyDirection(b, a); return null; });
+        completed.submit(() -> { copyDirection(a, b); return null; });
+        IOException failure = null;
         try {
-            var one = pool.submit(() -> b.getInputStream().transferTo(a.getOutputStream()));
-            var two = pool.submit(() -> a.getInputStream().transferTo(b.getOutputStream()));
-            try { one.get(); } catch (ExecutionException e) { failure = e; }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); failure = e; }
+            for (int i = 0; i < 2; i++) {
+                try {
+                    completed.take().get();
+                } catch (ExecutionException e) {
+                    Throwable cause = e.getCause();
+                    failure = cause instanceof IOException io ? io : new IOException("TCP stream copy failed", cause);
+                    break;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    failure = new IOException("Interrupted while forwarding TCP stream", e);
+                    break;
+                }
+            }
+        } finally {
             closeQuietly(a);
             closeQuietly(b);
-            try { two.get(); } catch (ExecutionException e) { if (failure == null) failure = e; }
-            catch (InterruptedException e) { Thread.currentThread().interrupt(); if (failure == null) failure = e; }
-        } finally {
             pool.shutdownNow();
         }
-        if (failure != null) throw new IOException("TCP stream copy failed", failure);
+        if (failure != null) throw failure;
+    }
+
+    private static void copyDirection(Socket source, Socket destination) throws IOException {
+        source.getInputStream().transferTo(destination.getOutputStream());
+        destination.shutdownOutput();
     }
 
     public String id() { return id; }

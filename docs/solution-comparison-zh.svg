@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="940" viewBox="0 0 1720 940" role="img" aria-labelledby="title desc">
+  <title id="title">传统 Minecraft 联机部署与 Yiuk Switchboard 对比</title>
+  <desc id="desc">左侧展示租用高内存服务器运行完整 Minecraft 服务端，以及保留家庭世界时使用第三方网络工具的传统做法；右侧展示房主电脑运行世界、低规格公网服务器使用 Go relay 转发、服务器提供公网 IP 和联机入口的本项目方案。</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#2874A6"/></marker>
+    <marker id="arrow-blue-left" viewBox="0 0 10 10" refX="1" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#2874A6"/></marker>
+    <marker id="arrow-rust" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#B75D43"/></marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#7956A5"/></marker>
+    <filter id="shadow" x="-15%" y="-15%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#24364A" flood-opacity=".12"/></filter>
+    <style>
+      text{font-family:"Microsoft YaHei","Noto Sans CJK SC","Segoe UI",sans-serif;fill:#203247}
+      .title{font-size:28px;font-weight:700}.subtitle{font-size:14px;fill:#62758A}
+      .section-title{font-size:20px;font-weight:700}.node-title{font-size:16px;font-weight:700}
+      .body{font-size:13px}.small{font-size:12px;fill:#52677D}.tiny{font-size:11px;fill:#52677D}
+      .panel{filter:url(#shadow)}.badge{font-size:11px;font-weight:700}
+    </style>
+  </defs>
+  <rect width="1720" height="940" rx="18" fill="#F4F7FB"/>
+  <text x="40" y="48" class="title">传统 Minecraft 联机部署 vs Yiuk Switchboard</text>
+  <text x="40" y="77" class="subtitle">对比世界运行位置、服务器资源与公网接入方式。网络工具需求会因家庭网络和部署方式而异。</text>
+
+  <!-- Traditional approach -->
+  <rect x="35" y="110" width="805" height="790" rx="16" fill="#FFF8F5" stroke="#C9866C" stroke-width="2"/>
+  <text x="65" y="153" class="section-title" fill="#85452F">传统做法：租整台游戏服务器</text>
+  <text x="65" y="180" class="small">把完整 Minecraft 服务端和世界部署到公网主机上运行</text>
+
+  <!-- Traditional flow arrows behind nodes -->
+  <path d="M295 310H345" fill="none" stroke="#B75D43" stroke-width="2.5" marker-end="url(#arrow-rust)"/>
+  <path d="M615 310H660" fill="none" stroke="#B75D43" stroke-width="2.5" marker-end="url(#arrow-rust)"/>
+  <text x="298" y="291" class="tiny">迁移 / 部署</text>
+  <text x="615" y="291" class="tiny">公网 IP 加入</text>
+
+  <g class="panel">
+    <rect x="70" y="225" width="225" height="170" rx="11" fill="#FFFFFF" stroke="#B86C53" stroke-width="2"/>
+    <path d="M81 225H284Q295 225 295 236V262H70V236Q70 225 81 225Z" fill="#F7E2D9"/>
+    <text x="91" y="250" class="node-title">房主电脑</text>
+    <text x="91" y="294" class="body">单人世界与存档</text>
+    <text x="91" y="319" class="small">准备并迁移到云主机</text>
+    <text x="91" y="359" class="tiny">世界逻辑之后在云端运行</text>
+  </g>
+  <g class="panel">
+    <rect x="345" y="215" width="270" height="190" rx="11" fill="#FFFFFF" stroke="#B86C53" stroke-width="2"/>
+    <path d="M356 215H604Q615 215 615 226V252H345V226Q345 215 356 215Z" fill="#F7E2D9"/>
+    <text x="366" y="240" class="node-title">租用高配置云服务器</text>
+    <text x="366" y="284" class="body">运行完整 Minecraft 服务端</text>
+    <text x="366" y="309" class="small">世界 tick · 区块 · 玩家负载</text>
+    <rect x="366" y="333" width="220" height="29" rx="14" fill="#FCE8E2"/>
+    <text x="380" y="352" class="badge" fill="#923F31">需要较大内存</text>
+    <text x="366" y="385" class="tiny">还要维护服务端、Java、模组和存档</text>
+  </g>
+  <g class="panel">
+    <rect x="660" y="235" width="145" height="150" rx="11" fill="#FFFFFF" stroke="#B86C53" stroke-width="2"/>
+    <path d="M671 235H794Q805 235 805 246V272H660V246Q660 235 671 235Z" fill="#F7E2D9"/>
+    <text x="680" y="260" class="node-title">玩家电脑</text>
+    <text x="680" y="303" class="body">连接云服</text>
+    <text x="680" y="328" class="small">公网 IP:端口</text>
+    <text x="680" y="360" class="tiny">世界在云端</text>
+  </g>
+
+  <!-- Cost and memory callouts -->
+  <g class="panel">
+    <rect x="70" y="435" width="735" height="100" rx="11" fill="#FCE8E2" stroke="#D18A72"/>
+    <text x="95" y="470" class="node-title" fill="#923F31">大内存配置 → 服务器租赁费用高</text>
+    <text x="95" y="500" class="small">多人负载由整台 Minecraft 服务端承担；需要为高峰留出资源，长期费用随配置和流量变化。</text>
+  </g>
+
+  <!-- Home networking complexity -->
+  <text x="70" y="590" class="node-title">若世界仍留在房主家中，还要处理家庭网络入站</text>
+  <g class="panel">
+    <rect x="70" y="615" width="240" height="125" rx="10" fill="#FFFFFF" stroke="#C9866C" stroke-width="1.5"/>
+    <text x="91" y="648" class="node-title">家庭网络</text>
+    <text x="91" y="681" class="body">NAT / CGNAT</text>
+    <text x="91" y="712" class="small">路由器或运营商限制入站</text>
+  </g>
+  <path d="M310 678H360" fill="none" stroke="#7956A5" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <g class="panel">
+    <rect x="360" y="615" width="445" height="125" rx="10" fill="#FFFFFF" stroke="#9277B4" stroke-width="1.5"/>
+    <text x="382" y="648" class="node-title">组合第三方网络工具与设置</text>
+    <text x="382" y="680" class="body">端口映射 · DDNS · VPN / 隧道工具</text>
+    <text x="382" y="712" class="small">按网络环境选工具并逐项配置，排查连通性会增加步骤</text>
+  </g>
+  <text x="70" y="790" class="small">适用性取决于网络环境；家庭网络方案可能需要额外服务、账户或设备。</text>
+  <text x="70" y="830" class="tiny">即使选择云端整服托管，也要自行部署并维护完整游戏服务端。</text>
+
+  <!-- Yiuk Switchboard approach -->
+  <rect x="880" y="110" width="805" height="790" rx="16" fill="#F3F9F4" stroke="#76A078" stroke-width="2"/>
+  <text x="910" y="153" class="section-title" fill="#286239">本项目：轻量 Go TCP 中转</text>
+  <text x="910" y="180" class="small">保留房主单人世界，只让公网主机转发玩家连接</text>
+
+  <!-- Project connection arrows behind nodes -->
+  <path d="M1170 330H1240" fill="none" stroke="#7956A5" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#arrow-purple)"/>
+  <text x="1178" y="308" class="tiny" fill="#68478F">房主发起连接</text>
+  <path d="M1390 555V535" fill="none" stroke="#2874A6" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+
+  <g class="panel">
+    <rect x="910" y="250" width="260" height="170" rx="11" fill="#FFFFFF" stroke="#4780AA" stroke-width="2"/>
+    <path d="M921 250H1159Q1170 250 1170 261V287H910V261Q910 250 921 250Z" fill="#DCEBFA"/>
+    <text x="931" y="275" class="node-title">房主电脑</text>
+    <text x="931" y="316" class="body">Minecraft 单人世界</text>
+    <text x="931" y="342" class="small">原有存档与游戏逻辑留在本机</text>
+    <text x="931" y="382" class="tiny">房主模组主动连到公网 relay</text>
+  </g>
+  <g class="panel">
+    <rect x="1240" y="235" width="300" height="300" rx="11" fill="#FFFFFF" stroke="#43824A" stroke-width="2"/>
+    <path d="M1251 235H1529Q1540 235 1540 246V272H1240V246Q1240 235 1251 235Z" fill="#DDEEDD"/>
+    <text x="1261" y="260" class="node-title">低规格公网服务器</text>
+    <text x="1261" y="299" class="body">Go TCP relay</text>
+    <text x="1261" y="322" class="tiny">认证 · 房间 / 端口分配 · TCP 转发</text>
+    <text x="1261" y="345" class="tiny">不运行 Minecraft 世界或 tick</text>
+    <g>
+      <rect x="1253" y="358" width="133" height="54" rx="6" fill="#F5F9FE" stroke="#8BAFCB"/>
+      <text x="1262" y="376" class="tiny">房间 01 · 世界 A</text>
+      <text x="1262" y="393" class="tiny">游戏版本 A</text>
+      <text x="1262" y="408" class="tiny">模组集 A</text>
+      <rect x="1394" y="358" width="133" height="54" rx="6" fill="#F7F3FC" stroke="#B29BCB"/>
+      <text x="1403" y="376" class="tiny">房间 02 · 世界 B</text>
+      <text x="1403" y="393" class="tiny">游戏版本 B</text>
+      <text x="1403" y="408" class="tiny">模组集 B</text>
+      <rect x="1253" y="418" width="133" height="54" rx="6" fill="#F5F9FE" stroke="#8BAFCB"/>
+      <text x="1262" y="436" class="tiny">房间 03 · 世界 C</text>
+      <text x="1262" y="453" class="tiny">游戏版本 C</text>
+      <text x="1262" y="468" class="tiny">模组集 C</text>
+      <rect x="1394" y="418" width="133" height="54" rx="6" fill="#F7F3FC" stroke="#B29BCB"/>
+      <text x="1403" y="436" class="tiny">房间 04 · 世界 D</text>
+      <text x="1403" y="453" class="tiny">游戏版本 D</text>
+      <text x="1403" y="468" class="tiny">模组集 D</text>
+    </g>
+    <rect x="1261" y="483" width="246" height="30" rx="15" fill="#E8F4E8"/>
+    <text x="1276" y="503" class="badge" fill="#286239">提供公网 IP / 联机入口</text>
+  </g>
+  <g class="panel">
+    <rect x="1260" y="555" width="260" height="110" rx="11" fill="#FFFFFF" stroke="#4780AA" stroke-width="2"/>
+    <path d="M1271 555H1509Q1520 555 1520 566V592H1260V566Q1260 555 1271 555Z" fill="#DCEBFA"/>
+    <text x="1281" y="580" class="node-title">玩家电脑</text>
+    <text x="1281" y="620" class="body">客户端模组连接 relay IP</text>
+    <text x="1281" y="644" class="small">游戏数据由 relay 转发到房主</text>
+  </g>
+
+  <!-- Project benefits -->
+  <g class="panel">
+    <rect x="910" y="705" width="350" height="135" rx="11" fill="#FFFFFF" stroke="#76A078" stroke-width="1.5"/>
+    <text x="934" y="738" class="node-title" fill="#286239">低内存需求 · 服务器成本低</text>
+    <text x="934" y="772" class="small">relay 只负责认证、配对和 TCP 转发，</text>
+    <text x="934" y="795" class="small">不加载世界，可按转发负载选择低规格</text>
+    <text x="934" y="818" class="small">实例，降低服务器租赁成本。</text>
+  </g>
+  <g class="panel">
+    <rect x="1280" y="705" width="360" height="135" rx="11" fill="#FFFFFF" stroke="#76A078" stroke-width="1.5"/>
+    <text x="1304" y="738" class="node-title" fill="#286239">公网接入简单 · 少配网络工具</text>
+    <text x="1304" y="772" class="small">云主机提供公网 IP 和中转端口；房主主动</text>
+    <text x="1304" y="795" class="small">建立反向连接，通常无需开放入站端口</text>
+    <text x="1304" y="818" class="small">或组合多种 VPN / 隧道工具。</text>
+  </g>
+  <text x="910" y="870" class="small">房间只登记版本 / 模组元数据；存档与游戏模拟仍由各房主电脑运行。</text>
+</svg>

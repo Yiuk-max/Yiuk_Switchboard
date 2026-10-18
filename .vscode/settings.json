@@ -8,5 +8,6 @@
   "gopls": {
     "ui.semanticTokens": true
   },
-  "go.useLanguageServer": true
+  "go.useLanguageServer": true,
+  "cmake.sourceDirectory": "E:/Yiuk_Switchboard/ops/client"
 }

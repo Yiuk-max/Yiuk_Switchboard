@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// Pipe copies both directions and closes both sockets as soon as either side
-// ends. Each direction may be a buffered reader to preserve protocol prefetch.
-func Pipe(a net.Conn, aReader io.Reader, b net.Conn, bReader io.Reader, idleTimeout time.Duration) {
+// Pipe copies both directions and preserves TCP half-closes. Each direction may
+// be a buffered reader to preserve protocol prefetch.
+func Pipe(a net.Conn, aReader io.Reader, b net.Conn, bReader io.Reader, idleTimeout time.Duration) error {
 	if aReader == nil {
 		aReader = a
 	}
@@ -17,13 +17,44 @@ func Pipe(a net.Conn, aReader io.Reader, b net.Conn, bReader io.Reader, idleTime
 	}
 	aReader = idleReader{reader: aReader, conn: a, timeout: idleTimeout}
 	bReader = idleReader{reader: bReader, conn: b, timeout: idleTimeout}
-	done := make(chan struct{}, 2)
-	go func() { _, _ = io.Copy(a, bReader); done <- struct{}{} }()
-	go func() { _, _ = io.Copy(b, aReader); done <- struct{}{} }()
-	<-done
+	type copyResult struct {
+		destination net.Conn
+		err         error
+	}
+	done := make(chan copyResult, 2)
+	go func() { _, err := io.Copy(a, bReader); done <- copyResult{destination: a, err: err} }()
+	go func() { _, err := io.Copy(b, aReader); done <- copyResult{destination: b, err: err} }()
+
+	var firstErr error
+	for range 2 {
+		result := <-done
+		if result.err != nil {
+			if firstErr == nil {
+				firstErr = result.err
+			}
+			// An I/O error (including an idle timeout) makes the session unusable.
+			_ = a.Close()
+			_ = b.Close()
+			continue
+		}
+		if firstErr == nil {
+			if err := closeWrite(result.destination); err != nil {
+				firstErr = err
+				_ = a.Close()
+				_ = b.Close()
+			}
+		}
+	}
 	_ = a.Close()
 	_ = b.Close()
-	<-done
+	return firstErr
+}
+
+func closeWrite(conn net.Conn) error {
+	if halfCloser, ok := conn.(interface{ CloseWrite() error }); ok {
+		return halfCloser.CloseWrite()
+	}
+	return conn.Close()
 }
 
 type idleReader struct {

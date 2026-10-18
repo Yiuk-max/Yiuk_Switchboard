@@ -1,6 +1,6 @@
 package com.yiuk.switchboard.client.gui;
 
-/** Fixed positions derived from the vanilla 1.21.1 multiplayer and pause-menu layouts. */
+/** Positions derived from vanilla anchors so added controls follow the active screen layout. */
 public final class RelayButtonPlacement {
     private RelayButtonPlacement() {}
 
@@ -10,7 +10,7 @@ public final class RelayButtonPlacement {
         return new Point((screenWidth + 308) / 2 + 8, screenHeight - 54);
     }
 
-    public static Point host(int optionsX, int optionsY, int optionsWidth, int optionsHeight) {
-        return new Point(optionsX, optionsY + optionsHeight + 4);
+    public static Point host(int anchorX, int anchorY, int anchorHeight) {
+        return new Point(anchorX, anchorY + anchorHeight + 4);
     }
 }

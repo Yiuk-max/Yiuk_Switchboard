@@ -46,7 +46,9 @@ cd mod
 
 - 安装 Go 1.26 或更新版本，与仓库根目录 `go.mod` 的 `go 1.26.0` 声明一致。
 - 在仓库根目录执行 `go build ./...` 编译所有包；执行 `go build -o bin/relay.exe ./cmd/relay` 生成 Windows 服务端程序。
-- 复制 `configs/config.example.yaml` 作为运行配置，设置连接密码和端口范围，再按根目录 README 的步骤启动。
+- 将 `configs/config.yaml` 复制到部署目录并命名为 `config.yaml`，设置不同的随机服主/玩家密码和端口范围，再按根目录 README 的步骤启动。不要把真实密码提交到仓库。
+- Linux amd64 relay：`GOOS=linux GOARCH=amd64 go build -trimpath -o bin/relay-linux-amd64 ./cmd/relay`。
+- Linux amd64 运维代理和管理通道说明见 [`ops/README.md`](../../ops/README.md)。
 
 ## 版本与路径速查
 
@@ -59,3 +61,5 @@ cd mod
 | 客户端工程 | `mod/` |
 | 客户端 JAR 输出 | `mod/build/libs/` |
 | 服务端 | 仓库根目录 Go module |
+| 运维代理 | `ops/server/cmd/ops-agent/` |
+| 运维工具说明 | `ops/README.md` |

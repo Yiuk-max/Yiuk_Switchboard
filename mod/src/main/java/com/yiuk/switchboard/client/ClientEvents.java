@@ -13,7 +13,7 @@ import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.multiplayer.JoinMultiplayerScreen;
 import net.minecraft.client.gui.screens.multiplayer.ServerSelectionList;
-import net.minecraft.client.gui.screens.PauseScreen;
+import net.minecraft.client.gui.screens.options.OptionsScreen;
 import com.yiuk.switchboard.config.RelayServerStore;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -51,24 +51,16 @@ public final class ClientEvents {
                         .bounds(x, y + 24, 100, 20).build());
             }
             ensureRelayEntries(joinScreen);
-        } else if (screen instanceof PauseScreen && minecraft.getSingleplayerServer() != null) {
-            var options = screen.children().stream()
+        } else if (screen instanceof OptionsScreen && minecraft.getSingleplayerServer() != null) {
+            var resourcePacks = screen.children().stream()
                     .filter(AbstractWidget.class::isInstance)
                     .map(AbstractWidget.class::cast)
                     .filter(widget -> widget.getMessage().getString().equals(
-                            net.minecraft.network.chat.Component.translatable("menu.options").getString()))
+                            net.minecraft.network.chat.Component.translatable("options.resourcepack").getString()))
                     .findFirst();
-            if (options.isPresent()) {
-                AbstractWidget anchor = options.get();
-                var position = RelayButtonPlacement.host(anchor.getX(), anchor.getY(), anchor.getWidth(), anchor.getHeight());
-                // Insert a real grid row. Move all existing vanilla and mod widgets below it
-                // together so the new host button never shares the mods-list row.
-                int insertedRowY = position.y();
-                for (var child : screen.children()) {
-                    if (child instanceof AbstractWidget widget && widget.getY() >= insertedRowY) {
-                        widget.setY(widget.getY() + anchor.getHeight() + 4);
-                    }
-                }
+            if (resourcePacks.isPresent()) {
+                AbstractWidget anchor = resourcePacks.get();
+                var position = RelayButtonPlacement.host(anchor.getX(), anchor.getY(), anchor.getHeight());
                 event.addListener(Button.builder(
                     net.minecraft.network.chat.Component.translatable("yiukswitchboard.button.host"),
                     button -> {
@@ -76,7 +68,7 @@ public final class ClientEvents {
                         if (room != null && !room.isClosed()) minecraft.setScreen(new HostStatusScreen(screen, room));
                         else minecraft.setScreen(new RelayHostCreateScreen(screen));
                     })
-                    .bounds(position.x(), insertedRowY,
+                    .bounds(position.x(), position.y(),
                             anchor.getWidth(), anchor.getHeight()).build());
             }
         }

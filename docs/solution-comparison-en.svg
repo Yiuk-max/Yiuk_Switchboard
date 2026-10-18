@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1720" height="940" viewBox="0 0 1720 940" role="img" aria-labelledby="title desc">
+  <title id="title">Traditional Minecraft hosting compared with Yiuk Switchboard</title>
+  <desc id="desc">The left shows renting a high-memory server for the full Minecraft server, plus third-party networking tools when keeping a world at home. The right shows the world running on the host computer while a low-spec public server runs a Go relay, forwards TCP connections, and provides the public IP and join endpoint.</desc>
+  <defs>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#2874A6"/></marker>
+    <marker id="arrow-rust" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#B75D43"/></marker>
+    <marker id="arrow-purple" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#7956A5"/></marker>
+    <filter id="shadow" x="-15%" y="-15%" width="140%" height="150%"><feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#24364A" flood-opacity=".12"/></filter>
+    <style>
+      text{font-family:"Segoe UI",Arial,sans-serif;fill:#203247}
+      .title{font-size:28px;font-weight:700}.subtitle{font-size:14px;fill:#62758A}
+      .section-title{font-size:20px;font-weight:700}.node-title{font-size:16px;font-weight:700}
+      .body{font-size:13px}.small{font-size:12px;fill:#52677D}.tiny{font-size:11px;fill:#52677D}
+      .panel{filter:url(#shadow)}.badge{font-size:11px;font-weight:700}
+    </style>
+  </defs>
+  <rect width="1720" height="940" rx="18" fill="#F4F7FB"/>
+  <text x="40" y="48" class="title">Traditional Minecraft hosting vs Yiuk Switchboard</text>
+  <text x="40" y="77" class="subtitle">Compare where the world runs, server resources, and public access. Networking-tool needs vary with the home network and deployment.</text>
+
+  <!-- Traditional approach -->
+  <rect x="35" y="110" width="805" height="790" rx="16" fill="#FFF8F5" stroke="#C9866C" stroke-width="2"/>
+  <text x="65" y="153" class="section-title" fill="#85452F">Traditional: rent a full game server</text>
+  <text x="65" y="180" class="small">Deploy the complete Minecraft server and world on a public machine</text>
+
+  <!-- Traditional flow arrows behind nodes -->
+  <path d="M295 310H345" fill="none" stroke="#B75D43" stroke-width="2.5" marker-end="url(#arrow-rust)"/>
+  <path d="M615 310H660" fill="none" stroke="#B75D43" stroke-width="2.5" marker-end="url(#arrow-rust)"/>
+  <text x="298" y="291" class="tiny">Migrate / deploy</text>
+  <text x="615" y="291" class="tiny">Join by public IP</text>
+
+  <g class="panel">
+    <rect x="70" y="225" width="225" height="170" rx="11" fill="#FFFFFF" stroke="#B86C53" stroke-width="2"/>
+    <path d="M81 225H284Q295 225 295 236V262H70V236Q70 225 81 225Z" fill="#F7E2D9"/>
+    <text x="91" y="250" class="node-title">Host computer</text>
+    <text x="91" y="294" class="body">Single-player world and save</text>
+    <text x="91" y="319" class="small">Prepare and migrate to the cloud</text>
+    <text x="91" y="359" class="tiny">World simulation then runs in the cloud</text>
+  </g>
+  <g class="panel">
+    <rect x="345" y="215" width="270" height="190" rx="11" fill="#FFFFFF" stroke="#B86C53" stroke-width="2"/>
+    <path d="M356 215H604Q615 215 615 226V252H345V226Q345 215 356 215Z" fill="#F7E2D9"/>
+    <text x="366" y="240" class="node-title">Rent a high-memory server</text>
+    <text x="366" y="284" class="body">Run the full Minecraft server</text>
+    <text x="366" y="309" class="small">World ticks · chunks · player load</text>
+    <rect x="366" y="333" width="220" height="29" rx="14" fill="#FCE8E2"/>
+    <text x="380" y="352" class="badge" fill="#923F31">Higher RAM required</text>
+    <text x="366" y="385" class="tiny">Maintain server, Java, mods, and saves</text>
+  </g>
+  <g class="panel">
+    <rect x="660" y="235" width="145" height="150" rx="11" fill="#FFFFFF" stroke="#B86C53" stroke-width="2"/>
+    <path d="M671 235H794Q805 235 805 246V272H660V246Q660 235 671 235Z" fill="#F7E2D9"/>
+    <text x="680" y="260" class="node-title">Players</text>
+    <text x="680" y="303" class="body">Join cloud server</text>
+    <text x="680" y="328" class="small">Public IP:port</text>
+    <text x="680" y="360" class="tiny">World runs in cloud</text>
+  </g>
+
+  <!-- Cost and memory callouts -->
+  <g class="panel">
+    <rect x="70" y="435" width="735" height="100" rx="11" fill="#FCE8E2" stroke="#D18A72"/>
+    <text x="95" y="470" class="node-title" fill="#923F31">Large memory needs → higher server rental cost</text>
+    <text x="95" y="500" class="small">The full Minecraft server handles player load; reserve capacity for peaks. Monthly cost varies by provider and traffic.</text>
+  </g>
+
+  <!-- Home networking complexity -->
+  <text x="70" y="590" class="node-title">If the world stays at home, inbound networking still needs solving</text>
+  <g class="panel">
+    <rect x="70" y="615" width="240" height="125" rx="10" fill="#FFFFFF" stroke="#C9866C" stroke-width="1.5"/>
+    <text x="91" y="648" class="node-title">Home network</text>
+    <text x="91" y="681" class="body">NAT / CGNAT</text>
+    <text x="91" y="712" class="small">Router or ISP blocks inbound access</text>
+  </g>
+  <path d="M310 678H360" fill="none" stroke="#7956A5" stroke-width="2" marker-end="url(#arrow-purple)"/>
+  <g class="panel">
+    <rect x="360" y="615" width="445" height="125" rx="10" fill="#FFFFFF" stroke="#9277B4" stroke-width="1.5"/>
+    <text x="382" y="648" class="node-title">Combine third-party networking tools</text>
+    <text x="382" y="680" class="body">Port forwarding · DDNS · VPN / tunnel tools</text>
+    <text x="382" y="712" class="small">Choose and configure tools for the network; troubleshooting adds steps</text>
+  </g>
+  <text x="70" y="790" class="small">What works depends on the network; a home-hosted setup may need extra services, accounts, or hardware.</text>
+  <text x="70" y="830" class="tiny">Even with a cloud server, the full game server still has to be deployed and maintained.</text>
+
+  <!-- Yiuk Switchboard approach -->
+  <rect x="880" y="110" width="805" height="790" rx="16" fill="#F3F9F4" stroke="#76A078" stroke-width="2"/>
+  <text x="910" y="153" class="section-title" fill="#286239">This project: lightweight Go TCP relay</text>
+  <text x="910" y="180" class="small">Keep the host's single-player world; use the public server only to forward connections</text>
+
+  <!-- Project connection arrows behind nodes -->
+  <path d="M1170 330H1240" fill="none" stroke="#7956A5" stroke-width="2.5" stroke-dasharray="7 6" marker-end="url(#arrow-purple)"/>
+  <path d="M1390 555V535" fill="none" stroke="#2874A6" stroke-width="2.5" marker-end="url(#arrow-blue)"/>
+
+  <g class="panel">
+    <rect x="910" y="250" width="260" height="170" rx="11" fill="#FFFFFF" stroke="#4780AA" stroke-width="2"/>
+    <path d="M921 250H1159Q1170 250 1170 261V287H910V261Q910 250 921 250Z" fill="#DCEBFA"/>
+    <text x="931" y="275" class="node-title">Host computer</text>
+    <text x="931" y="316" class="body">Minecraft single-player world</text>
+    <text x="931" y="342" class="small">Existing save and game logic stay local</text>
+    <text x="931" y="382" class="tiny">Host mod opens an outbound channel</text>
+  </g>
+  <g class="panel">
+    <rect x="1240" y="235" width="300" height="300" rx="11" fill="#FFFFFF" stroke="#43824A" stroke-width="2"/>
+    <path d="M1251 235H1529Q1540 235 1540 246V272H1240V246Q1240 235 1251 235Z" fill="#DDEEDD"/>
+    <text x="1261" y="260" class="node-title">Low-spec public server</text>
+    <text x="1261" y="299" class="body">Go TCP relay</text>
+    <text x="1261" y="322" class="tiny">Auth · rooms / ports · TCP forwarding</text>
+    <text x="1261" y="345" class="tiny">Does not run Minecraft or world ticks</text>
+    <g>
+      <rect x="1253" y="358" width="133" height="54" rx="6" fill="#F5F9FE" stroke="#8BAFCB"/>
+      <text x="1262" y="376" class="tiny">Room 01 · world A</text>
+      <text x="1262" y="393" class="tiny">Game version A</text>
+      <text x="1262" y="408" class="tiny">Mod set A</text>
+      <rect x="1394" y="358" width="133" height="54" rx="6" fill="#F7F3FC" stroke="#B29BCB"/>
+      <text x="1403" y="376" class="tiny">Room 02 · world B</text>
+      <text x="1403" y="393" class="tiny">Game version B</text>
+      <text x="1403" y="408" class="tiny">Mod set B</text>
+      <rect x="1253" y="418" width="133" height="54" rx="6" fill="#F5F9FE" stroke="#8BAFCB"/>
+      <text x="1262" y="436" class="tiny">Room 03 · world C</text>
+      <text x="1262" y="453" class="tiny">Game version C</text>
+      <text x="1262" y="468" class="tiny">Mod set C</text>
+      <rect x="1394" y="418" width="133" height="54" rx="6" fill="#F7F3FC" stroke="#B29BCB"/>
+      <text x="1403" y="436" class="tiny">Room 04 · world D</text>
+      <text x="1403" y="453" class="tiny">Game version D</text>
+      <text x="1403" y="468" class="tiny">Mod set D</text>
+    </g>
+    <rect x="1261" y="483" width="246" height="30" rx="15" fill="#E8F4E8"/>
+    <text x="1276" y="503" class="badge" fill="#286239">Public IP / join endpoint</text>
+  </g>
+  <g class="panel">
+    <rect x="1260" y="555" width="260" height="110" rx="11" fill="#FFFFFF" stroke="#4780AA" stroke-width="2"/>
+    <path d="M1271 555H1509Q1520 555 1520 566V592H1260V566Q1260 555 1271 555Z" fill="#DCEBFA"/>
+    <text x="1281" y="580" class="node-title">Player computers</text>
+    <text x="1281" y="620" class="body">Client mod connects to relay IP</text>
+    <text x="1281" y="644" class="small">Relay forwards game data to the host</text>
+  </g>
+
+  <!-- Project benefits -->
+  <g class="panel">
+    <rect x="910" y="705" width="350" height="135" rx="11" fill="#FFFFFF" stroke="#76A078" stroke-width="1.5"/>
+    <text x="934" y="738" class="node-title" fill="#286239">Low memory · lower server cost</text>
+    <text x="934" y="772" class="small">The relay handles auth, pairing, and TCP</text>
+    <text x="934" y="795" class="small">forwarding only. It does not load the world,</text>
+    <text x="934" y="818" class="small">so a lower-spec instance can reduce costs.</text>
+  </g>
+  <g class="panel">
+    <rect x="1280" y="705" width="360" height="135" rx="11" fill="#FFFFFF" stroke="#76A078" stroke-width="1.5"/>
+    <text x="1304" y="738" class="node-title" fill="#286239">Public IP · simpler network setup</text>
+    <text x="1304" y="772" class="small">The public host provides an IP and relay port.</text>
+    <text x="1304" y="795" class="small">The host opens an outbound connection, usually</text>
+    <text x="1304" y="818" class="small">avoiding inbound ports or a stack of tunnel tools.</text>
+  </g>
+  <text x="910" y="870" class="small">Rooms list version / mod metadata; each host computer still runs its own world, save, and simulation.</text>
+</svg>

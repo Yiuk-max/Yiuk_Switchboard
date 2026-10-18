@@ -12,23 +12,19 @@ Minecraft 单人世界开放到局域网后，实际运行世界的是房主客�
 
 ## 提供的解决方案
 
-```mermaid
-flowchart LR
-    P[玩家 Minecraft + 模组]
-    R[公网 Go 中转服务]
-    H[房主 Minecraft 集成服务器]
-    M[房主模组]
-    P -->|控制连接、加入房间| R
-    P <-->|Minecraft TCP 字节流| R
-    R <-->|房主控制与反向数据连接| M
-    M <-->|本机 LAN TCP| H
-```
+![玩家连接与运维拓扑](docs/architecture-zh.svg)
 
-中转服务负责认证、房间与端口分配、玩家连接配对和 TCP 字节转发；它不启动 Minecraft、不读取或修改 Minecraft 游戏数据，也不承载世界 tick。玩家、实体、区块和存档仍由房主的 Minecraft 集成服务器管理。
+**看图方法：虚线是控制或管理连接，实线是游戏 TCP 数据。** 每位玩家分别连到 relay：控制连接负责登录、列房和查询模组；房间连接承载 Minecraft 字节流。relay 再把玩家连接与房主模组建立的数据通道配对，房主模组通过本机 LAN TCP 接入同一台电脑上的 Minecraft 集成服务器。单人世界、实体、区块和 tick 都在房主电脑运行；Go relay 不启动 Minecraft，也不解析游戏数据。relay 可同时维护多个独立房间，并分别登记 Minecraft / 加载器版本和模组清单；玩家客户端仍需与加入的房间兼容。存档文件和世界运行状态留在各房主电脑。图中把 Qt 运维面板放在房主电脑区域的正下方，表示它是独立远程终端，同时把主要联机链路留在上方。
 
-房主和玩家安装同一个客户端模组。模组提供房间创建、房间列表、加入前模组版本提示、房主连接状态、心跳和控制连接恢复。模组清单用于提示差异，不会自动下载或安装模组。
+房主和玩家安装同一个客户端模组，但使用不同身份：玩家登录使用玩家密码，创建和恢复房间使用服主密码。模组提供房间创建、房间列表、加入前模组差异提示、房主连接状态、心跳和控制连接恢复；模组清单不会自动下载或安装模组。
 
-房主与中转服务在同一台电脑时，服务端可尝试直接连接本机 LAN 端口，绕过房主模组的数据转发代理；其他部署继续使用房主模组发起的反向数据连接。两种方式传输的都是原始 Minecraft TCP 字节流。
+运维面板是独立的 Qt 桌面程序，可运行在运维人员自己的电脑上；它通过 TLS 连接公网主机上的运维代理，由代理管理 relay 进程和配置，不承载玩家游戏流量。若 relay 与房主 Minecraft 在同一台机器，relay 还可尝试直连本机 LAN 端口，省去房主模组的数据桥接；其余部署使用图中的房主反向数据通道。
+
+### 与传统方案对比
+
+![传统 Minecraft 方案与 Yiuk Switchboard 对比](docs/solution-comparison-zh.svg)
+
+传统整服托管会把世界迁移到租用的高内存服务器上运行；如果希望世界继续留在家中，则可能还要组合端口映射、DDNS、VPN 或隧道等网络工具。本项目的公网服务器只提供 IP 和中转入口，Go relay 负责轻量 TCP 转发，游戏世界仍由房主电脑运行。
 
 ## 网络与协议
 
@@ -39,6 +35,13 @@ flowchart LR
 - 当前控制连接未加 TLS，密码会通过普通 TCP 发送。公网部署时请设置独立的强密码，不要复用其他服务的密码。
 
 ## 服务端部署
+
+方法一：
+复制本项目网址丢给你在服务器上的agent，让它去干活（表情包一）
+方法二：
+我在release里面提供了完整的构建产物，下载它们，把ops-agent-linux-amd64 (远程管理进程)和relay-linux-amd64(核心后端)上传到服务器
+ops-agent-linux-amd64进程交给systemd托管，relay-linux-amd64作为ops-agent-linux-amd64的子进程
+接着下面的，但不是从零构建
 
 ### 1. 准备公网主机和端口
 
@@ -75,7 +78,7 @@ auth_rate_per_min: 10
 log_file: "relay.log"
 ```
 
-模板中的 `12345678` 是示例值，服务端会拒绝使用该值启动。`log_file` 相对服务进程的当前工作目录解析；设为空字符串可关闭文件日志。配置文件应限制为服务账户可读，避免泄露共享密码。
+模板中的 `REPLACE_WITH_A_LONG_RANDOM_SECRET` 是占位值，服务端会拒绝使用该值启动；服主与玩家密码必须是不同的随机强密码。`log_file` 相对服务进程的当前工作目录解析；设为空字符串可关闭文件日志。配置文件应限制为服务账户可读，避免泄露共享密码。
 
 ### 3. 构建并启动
 
@@ -144,6 +147,19 @@ cd mod
 
 构建产物位于 `mod/build/libs/`。首次构建需要联网下载 Gradle、Minecraft、NeoForge 和插件依赖。开发客户端可用 `.\gradlew.bat runClient` 启动。详见[模组开发环境指南](mod/docs/development-environment.md)。
 
+## 运维管理
+
+`ops/` 包含 Go 运维代理和 Qt 6 桌面客户端。代理通过 TLS 管理 relay 子进程，支持状态、启停/重启、配置读取/校验保存和 CPU/内存指标。该管理通道与玩家/房主使用的 relay 控制端口分开；relay 控制通道本身仍未启用 TLS。
+
+运维代理从仓库根目录构建：
+
+```powershell
+go build -o ops/server/ops-agent.exe ./ops/server/cmd/ops-agent
+$env:GOOS='linux'; $env:GOARCH='amd64'; go build -trimpath -o ops/server/ops-agent-linux-amd64 ./ops/server/cmd/ops-agent
+```
+
+部署配置、安全要求和 Qt 客户端构建方法见[运维工具说明](ops/README.md)。当前仓库包含 Linux amd64 relay 和 ops-agent 预编译产物；它们尚未在 Linux 目标机上做运行验收。
+
 ## 常见问题
 
 - **客户端无法登录：** 检查填写的地址、控制端口和密码；服务端配置不能使用模板示例密码。
@@ -158,6 +174,7 @@ cd mod
 - [完整项目技术文档](docs/项目技术文档.md)：项目结构、架构、协议、生命周期和问题处理记录。
 - [服务端架构规划](docs/server-architecture.md)：Go 包职责与阶段规划。
 - [客户端开发规划](mod/docs/development-plan.md)：模组界面流程和开发计划。
+- [运维工具说明](ops/README.md)：TLS 运维代理、Qt 客户端及部署配置。
 
 ---
 
@@ -173,23 +190,19 @@ This project runs a small relay on a publicly reachable machine. Players connect
 
 ## What it provides
 
-```mermaid
-flowchart LR
-    P[Player Minecraft + mod]
-    R[Public Go relay]
-    H[Host integrated server]
-    M[Host mod]
-    P -->|Control connection, room join| R
-    P <-->|Minecraft TCP byte stream| R
-    R <-->|Host control and reverse data connection| M
-    M <-->|Local LAN TCP| H
-```
+![Player connection and operations topology](docs/architecture-en.svg)
 
-The relay handles authentication, room and port allocation, player pairing, and byte-transparent TCP forwarding. It does not start Minecraft, read or modify game packets, or run world ticks. Players, entities, chunks, and saves remain under the host's Minecraft integrated server.
+**How to read the diagram: dashed lines are control or management connections; solid lines carry game TCP data.** Each player has a control connection to the relay for login, browsing, and mod-list queries, plus a room connection for the Minecraft byte stream. The relay pairs that room connection with a data channel opened by the host mod; the mod bridges it over local LAN TCP to the integrated server on the same host computer. The single-player world, entities, chunks, and ticks run on the host computer. The Go relay does not run Minecraft or parse game data. It can maintain multiple independent rooms with separate Minecraft/loader version and mod-list metadata; a player client still needs to be compatible with the room it joins. Save files and worlds stay on the host computers. The Qt operations panel is positioned directly below the host computer to use the open space while remaining a separate remote terminal.
 
-The host and players install the same client mod. It provides room creation and browsing, a pre-join mod-version notice, host connection status, heartbeats, and control-connection recovery. The mod manifest is informational; mods are not downloaded or installed automatically.
+The host and players install the same client mod but use different roles: players use the player password; room creation and recovery use the host password. The mod provides room creation and browsing, a pre-join mod-difference notice, host connection status, heartbeats, and control-connection recovery. It does not download or install mods.
 
-When the relay and host are on the same machine, the relay can try connecting directly to the local LAN port and bypass the host mod's data-forwarding proxy. Other deployments use a reverse data connection initiated by the host mod. Both paths carry the original Minecraft TCP byte stream.
+The Qt operations panel is a separate desktop app, usually on an operator's computer. It connects over TLS to the operations agent on the public host; that agent manages the relay process and config, and does not carry player game traffic. If the relay and Minecraft host are on the same machine, the relay can also try the local LAN port directly and bypass the host mod's data bridge; otherwise it uses the reverse data channel shown above.
+
+### Comparison with traditional hosting
+
+![Traditional Minecraft hosting compared with Yiuk Switchboard](docs/solution-comparison-en.svg)
+
+Traditional full-server hosting moves the world to a rented high-memory machine. If the world stays at home, inbound access may also require a combination of port forwarding, DDNS, VPN, or tunnel tools. This project's public server provides the IP and relay endpoint; the Go relay forwards TCP while the host computer continues to run the world.
 
 ## Network and protocol
 
@@ -305,6 +318,19 @@ cd mod
 
 The JAR is written to `mod/build/libs/`. The first build downloads Gradle, Minecraft, NeoForge, and plugin dependencies. Launch the development client with `.\gradlew.bat runClient`. See the [mod development environment guide](mod/docs/development-environment.md).
 
+## Operations management
+
+`ops/` contains the Go operations agent and a Qt 6 desktop client. The agent manages the relay child process over TLS and supports status, start/stop/restart, validated config read/write, and CPU/memory metrics. This management channel is separate from the relay control port used by players and hosts; the relay control channel itself does not yet use TLS.
+
+Build the agent from the repository root:
+
+```powershell
+go build -o ops/server/ops-agent.exe ./ops/server/cmd/ops-agent
+$env:GOOS='linux'; $env:GOARCH='amd64'; go build -trimpath -o ops/server/ops-agent-linux-amd64 ./ops/server/cmd/ops-agent
+```
+
+See the [operations guide](ops/README.md) for deployment configuration, security notes, and Qt client builds. The repository includes prebuilt Linux amd64 relay and ops-agent binaries; they have not been runtime-verified on a Linux host.
+
 ## Troubleshooting
 
 - **Cannot log in:** Check the server address, control port, and password. The server rejects the example password in the template.
@@ -319,3 +345,4 @@ The JAR is written to `mod/build/libs/`. The first build downloads Gradle, Minec
 - [Full project technical documentation](docs/项目技术文档.md): structure, architecture, protocol, lifecycle, and issue history.
 - [Server architecture plan](docs/server-architecture.md): Go package responsibilities and development phases.
 - [Client development plan](mod/docs/development-plan.md): mod UI flow and development plan.
+- [Operations guide](ops/README.md): TLS agent, Qt client, and deployment configuration.

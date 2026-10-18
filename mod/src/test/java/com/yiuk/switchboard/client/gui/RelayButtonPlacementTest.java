@@ -14,8 +14,8 @@ class RelayButtonPlacementTest {
     }
 
     @Test
-    void hostButtonUsesOptionsLeftColumnAndNextRow() {
-        var host = RelayButtonPlacement.host(323, 300, 204, 20);
+    void hostButtonUsesResourcePackAnchorAndNextRow() {
+        var host = RelayButtonPlacement.host(323, 300, 20);
         assertEquals(323, host.x());
         assertEquals(324, host.y());
     }

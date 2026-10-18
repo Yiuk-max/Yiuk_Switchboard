@@ -344,6 +344,16 @@ type readerConn struct {
 
 func (c *readerConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
 
+// CloseWrite preserves the underlying TCP half-close capability. The relay
+// tunnels gameplay through this wrapper because the initial protocol frame may
+// already have buffered bytes after it.
+func (c *readerConn) CloseWrite() error {
+	if halfCloser, ok := c.Conn.(interface{ CloseWrite() error }); ok {
+		return halfCloser.CloseWrite()
+	}
+	return c.Conn.Close()
+}
+
 func (m *Manager) removePending(r *room, sid string) {
 	r.mu.Lock()
 	delete(r.pending, sid)
